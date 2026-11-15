@@ -1,7 +1,11 @@
 name: Deploy
 
-# Publishes the site to GitHub Pages on every push to main, but only after the
-# full CI workflow has passed on that exact commit.
+# Publishes the site to GitHub Pages, but only after the full CI workflow has
+# passed on that exact commit. It runs on every push to main, and is also
+# called by data.yml whenever new orbital data has been published.
+#
+# The orbital data is not part of the source code. It lives on the `data`
+# branch and is copied into the built site here, under data/.
 #
 # One-time setup in the repository: Settings -> Pages -> Build and deployment
 # -> Source: "GitHub Actions".
@@ -10,6 +14,7 @@ on:
     branches:
       - main
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -44,6 +49,23 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+      - name: Add the published orbital data
+        run: |
+          set -euo pipefail
+          status=0
+          git ls-remote --exit-code --heads origin data > /dev/null || status=$?
+          if [ "$status" -eq 0 ]; then
+            git fetch --depth=1 origin data
+            mkdir -p dist/data
+            git archive FETCH_HEAD | tar -x -C dist/data
+            ls -l dist/data
+          elif [ "$status" -eq 2 ]; then
+            echo "::notice::There is no data branch yet. The site is being deployed without orbital data."
+          else
+            echo "::error::Could not query the repository for the data branch (git exit code $status)."
+            exit 1
+          fi
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v6

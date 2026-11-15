@@ -24,6 +24,10 @@ export default defineConfig({
   // and at a custom domain root, with no rebuild. The trade-off is that the app
   // must not use path-based routing; view state lives in the query string.
   base: './',
+  // The site is plain files with no client-side routing. 'mpa' makes the
+  // development and preview servers answer 404 for a missing file, as GitHub
+  // Pages does, instead of serving index.html in its place.
+  appType: 'mpa',
   define: {
     __BUILD_COMMIT__: JSON.stringify(resolveCommit()),
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),

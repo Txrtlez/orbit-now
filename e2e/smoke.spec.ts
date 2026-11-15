@@ -10,9 +10,17 @@ function trackErrors(page: Page): string[] {
     errors.push(`pageerror: ${error.message}`);
   });
   page.on('console', (message) => {
-    if (message.type() === 'error') {
-      errors.push(`console.error: ${message.text()}`);
+    if (message.type() !== 'error') {
+      return;
     }
+    // The build under test has no data directory, so the request for the
+    // catalog is answered with 404, and the browser itself logs that. The
+    // app handles the missing file deliberately (see catalog.spec.ts), so
+    // that one message is expected. Any other error still fails the test.
+    if (message.location().url.endsWith('/data/catalog.json.gz')) {
+      return;
+    }
+    errors.push(`console.error: ${message.text()}`);
   });
   return errors;
 }

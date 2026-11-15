@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-renderer="starting">
+<html lang="en" data-renderer="starting" data-catalog="loading">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -49,10 +49,9 @@
 
       <section id="panel-now" class="panel" role="tabpanel" aria-labelledby="tab-now" tabindex="0">
         <h2>Under construction</h2>
-        <p>
-          This is the Phase 1 scaffold of Orbit Now. No orbital data is loaded yet, so no satellites
-          are shown.
-        </p>
+        <div id="catalog-status" class="catalog-status">
+          <p>Loading orbital data…</p>
+        </div>
         <details class="details">
           <summary>What am I looking at?</summary>
           <p class="muted">

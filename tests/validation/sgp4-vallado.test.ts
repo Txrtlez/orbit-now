@@ -9,6 +9,9 @@
  */
 import { json2satrec, sgp4, twoline2satrec, type SatRec } from 'satellite.js';
 import { describe, expect, it } from 'vitest';
+import { parseOmmCsv } from '../../pipeline/omm';
+import { decodeCatalog, encodeCatalog, recordToOmm } from '../../src/catalog/format';
+import { verificationSetAsOmmCsv } from '../pipeline/fixtureCsv';
 import { loadVerificationCases, tleToOmm, type VerificationCase } from './valladoFixtures';
 
 /**
@@ -134,6 +137,36 @@ describe('SGP4 against the Vallado et al. (2006) verification set', () => {
       compared += compareCase(testCase, satrec, POSITION_TOLERANCE_KM).compared;
     }
     expect(compared).toBe(666);
+  });
+
+  it('reproduces the same 666 states after the elements have been through the whole data pipeline', () => {
+    // The route real data takes: OMM CSV -> pipeline checks -> catalog file
+    // -> decoded in the browser -> rebuilt OMM record -> SGP4. The catalog
+    // drops fields SGP4 does not read, so this also shows that dropping them
+    // changes nothing.
+    const parsed = parseOmmCsv(verificationSetAsOmmCsv(), Date.UTC(2026, 10, 14));
+    const catalog = decodeCatalog(
+      encodeCatalog({
+        generatedAt: '2026-11-14T00:00:00.000Z',
+        sources: [],
+        records: parsed.elementSets.map((elementSet) => ({ ...elementSet, sourceMask: 0 })),
+      }),
+    );
+    const byId = new Map(catalog.records.map((record) => [String(record.noradId), record]));
+
+    let compared = 0;
+    for (const testCase of comparable) {
+      const record = byId.get(testCase.id);
+      expect(record, `case ${testCase.id} should be in the catalog`).toBeDefined();
+      if (record === undefined) {
+        continue;
+      }
+      const satrec = json2satrec(recordToOmm(record));
+      compared += compareCase(testCase, satrec, POSITION_TOLERANCE_KM).compared;
+    }
+    expect(compared).toBe(666);
+    // The pipeline itself leaves out the impossible orbit.
+    expect(byId.has(INVALID_ORBIT_CASE)).toBe(false);
   });
 
   it('reports an error for the impossible orbit of case 33334 instead of a state', () => {

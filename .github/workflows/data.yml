@@ -1,0 +1,132 @@
+name: Update orbital data
+
+# Downloads orbital element sets from CelesTrak, checks them, and publishes the
+# result for the site to use.
+#
+# CelesTrak's usage policy (http://celestrak.org/usage-policy.php) governs how
+# this workflow behaves:
+#
+# - GP data is refreshed every 2 hours and may be downloaded once per refresh.
+#   This workflow asks three times a day, which is as often as the underlying
+#   data typically changes, and the pipeline itself refuses to ask for any
+#   data set it requested less than 2 hours 5 minutes earlier. That second
+#   rule is what makes the manual "Run workflow" button safe to press.
+# - On any response other than HTTP 200 the pipeline stops and does not retry.
+#   The previously published data stays in place.
+#
+# GitHub's hosted runners share IP addresses with other GitHub users. CelesTrak
+# applies its limit per address, so a download can be refused because someone
+# else's job on the same address got there first. That is expected now and
+# then; the run is marked failed only when something needs a human (see the
+# "alert" job).
+#
+# Where the data lives: on a branch named `data` that always holds exactly one
+# commit. Rewriting that single commit, instead of adding to `main`, keeps
+# megabytes of daily data out of the repository's permanent history.
+on:
+  schedule:
+    # 03:17, 11:17 and 19:17 UTC. Off the hour on purpose: scheduled workflows
+    # that start at minute 0 are the ones most often delayed.
+    - cron: '17 3,11,19 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: data
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Download and check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # to push the data branch
+    outputs:
+      deploy: ${{ steps.update.outputs.deploy }}
+      alert: ${{ steps.update.outputs.alert }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies exactly as locked
+        run: npm ci
+
+      - name: Fetch the currently published data
+        run: |
+          set -euo pipefail
+          mkdir -p .data/previous
+          status=0
+          git ls-remote --exit-code --heads origin data > /dev/null || status=$?
+          if [ "$status" -eq 0 ]; then
+            git fetch --depth=1 origin data
+            git archive FETCH_HEAD | tar -x -C .data/previous
+            ls -l .data/previous
+          elif [ "$status" -eq 2 ]; then
+            echo "There is no data branch yet: this is the first run."
+          else
+            # Any other failure must not be mistaken for "no previous data",
+            # or the published catalog would be rebuilt from nothing.
+            echo "::error::Could not query the repository for the data branch (git exit code $status)."
+            exit 1
+          fi
+
+      - name: Update the catalog
+        id: update
+        run: npm run --silent data:update -- --previous .data/previous --out .data/next --raw .data/raw
+
+      - name: Keep the raw downloads for inspection
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: raw-downloads
+          path: .data/raw
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Publish to the data branch
+        if: steps.update.outputs.publish == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd .data/next
+          git init --quiet --initial-branch=data
+          git add --all
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit --quiet --message "Orbital data as of $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push --force --quiet \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" data
+
+  deploy:
+    name: Rebuild the site with the new data
+    needs: update
+    if: needs.update.outputs.deploy == 'true'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/deploy.yml
+
+  alert:
+    name: Report problems
+    needs: [update, deploy]
+    # Runs after everything else, so that good data is still published and
+    # deployed before the run is marked as failed.
+    if: always() && needs.update.outputs.alert == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Mark the run as needing attention
+        run: |
+          echo "::error::The data update needs attention. Open the 'Download and check' job summary for details."
+          exit 1

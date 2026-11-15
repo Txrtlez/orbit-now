@@ -1,6 +1,8 @@
 import './styles.css';
 import { describeBuild } from './app/buildInfo';
+import { renderCatalogStatus, summariseCatalog } from './app/catalogStatus';
 import { initTabs } from './app/tabs';
+import { CATALOG_URL, loadCatalog } from './catalog/load';
 import { createGlobe } from './render/globe';
 
 /**
@@ -86,9 +88,36 @@ function startTabs(): void {
   ]);
 }
 
+type CatalogState = 'loading' | 'loaded' | 'missing' | 'error';
+
+/** Record the catalog's state on the <html> element, for the end-to-end tests. */
+function setCatalogState(state: CatalogState): void {
+  document.documentElement.dataset.catalog = state;
+}
+
+/**
+ * Download the orbital data and report what was received. Phase 2 only
+ * reports; drawing the objects is Phase 3.
+ */
+async function startCatalog(): Promise<void> {
+  const container = requireElement('catalog-status', HTMLElement);
+  try {
+    const catalog = await loadCatalog(CATALOG_URL, (url) => fetch(url));
+    renderCatalogStatus(container, catalog === null ? null : summariseCatalog(catalog), Date.now());
+    setCatalogState(catalog === null ? 'missing' : 'loaded');
+  } catch (error: unknown) {
+    console.warn('Orbit Now could not load its orbital data:', error);
+    const message = document.createElement('p');
+    message.textContent = 'The orbital data could not be loaded. Reload the page to try again.';
+    container.replaceChildren(message);
+    setCatalogState('error');
+  }
+}
+
 requireElement('build-info', HTMLElement).textContent = describeBuild(
   __BUILD_COMMIT__,
   __BUILD_TIME__,
 );
 startTabs();
 startGlobe();
+void startCatalog();
