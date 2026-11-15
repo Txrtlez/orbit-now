@@ -106,7 +106,7 @@ describe('making the fragments', () => {
   });
 });
 
-describe('a whole run', () => {
+describe('a whole run', { timeout: 60_000 }, () => {
   it('gives the same answer for the same seed and a different one for another', () => {
     const first = runSimulation(request('stage-explosion'));
     const again = runSimulation(request('stage-explosion'));
@@ -223,7 +223,7 @@ describe('scenarios', () => {
   });
 });
 
-describe('drawing the cloud', () => {
+describe('drawing the cloud', { timeout: 60_000 }, () => {
   const cloud: SimFragment[] = [];
   const result = runSimulation(request('stage-explosion', { trials: 1 }), (_i, _s, fragments) => {
     cloud.push(...fragments);

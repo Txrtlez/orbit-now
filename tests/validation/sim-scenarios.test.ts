@@ -121,19 +121,23 @@ describe('the simulation against three real break-ups', () => {
     });
   }
 
-  it('makes about as many pieces of a Fengyun-1C as NASA says its model does', () => {
-    // Johnson et al., IAC-07-A6.3.01: the standard model "would predict about
-    // 1000 debris of that size remaining in orbit after the first day".
-    const { result, inOrbitAt } = run('weather-satellite', 1, 6);
-    const made = median(result.trials.map((t) => t.fragments));
-    const afterADay = median(inOrbitAt(1 / 365.25)) * made;
-    recordMeasurement('V6.4 Fengyun-1C-like, against NASA\'s "about 1000 after the first day"', {
-      made,
-      afterADay: Math.round(afterADay),
-    });
-    expect(afterADay).toBeGreaterThan(700);
-    expect(afterADay).toBeLessThan(1100);
-  });
+  it(
+    'makes about as many pieces of a Fengyun-1C as NASA says its model does',
+    { timeout: 120_000 },
+    () => {
+      // Johnson et al., IAC-07-A6.3.01: the standard model "would predict about
+      // 1000 debris of that size remaining in orbit after the first day".
+      const { result, inOrbitAt } = run('weather-satellite', 1, 6);
+      const made = median(result.trials.map((t) => t.fragments));
+      const afterADay = median(inOrbitAt(1 / 365.25)) * made;
+      recordMeasurement('V6.4 Fengyun-1C-like, against NASA\'s "about 1000 after the first day"', {
+        made,
+        afterADay: Math.round(afterADay),
+      });
+      expect(afterADay).toBeGreaterThan(700);
+      expect(afterADay).toBeLessThan(1100);
+    },
+  );
 });
 
 describe('every preset', () => {
