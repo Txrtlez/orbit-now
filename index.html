@@ -50,26 +50,70 @@
       <div id="hover-label" class="hover-label" hidden></div>
 
       <div id="panel-now" class="mode-layer" role="tabpanel" aria-labelledby="tab-now">
-        <div id="search" class="search" role="search">
-          <label class="visually-hidden" for="search-input">
-            Search for an object by name, catalog number or designator
-          </label>
-          <input
-            id="search-input"
-            type="search"
-            role="combobox"
-            aria-expanded="false"
-            aria-controls="search-results"
-            aria-autocomplete="list"
-            autocomplete="off"
-            autocapitalize="off"
-            spellcheck="false"
-            enterkeyhint="search"
-            placeholder="Search name or number"
-            disabled
-          />
-          <ul id="search-results" class="search-results" role="listbox" hidden></ul>
-          <p id="search-status" class="visually-hidden" role="status"></p>
+        <div id="top-stack" class="top-stack">
+          <div id="search" class="search" role="search">
+            <label class="visually-hidden" for="search-input">
+              Search for an object by name, catalog number or designator
+            </label>
+            <input
+              id="search-input"
+              type="search"
+              role="combobox"
+              aria-expanded="false"
+              aria-controls="search-results"
+              aria-autocomplete="list"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+              enterkeyhint="search"
+              placeholder="Search name or number"
+              disabled
+            />
+            <ul id="search-results" class="search-results" role="listbox" hidden></ul>
+            <p id="search-status" class="visually-hidden" role="status"></p>
+          </div>
+
+          <section id="time-bar" class="time-bar" aria-label="Time controls" data-live="true">
+            <div class="time-row">
+              <button
+                id="time-play"
+                type="button"
+                class="icon-button play"
+                aria-label="Pause"
+              ></button>
+              <label class="visually-hidden" for="time-speed">Playback speed</label>
+              <select id="time-speed" class="time-speed"></select>
+              <div class="time-readout">
+                <span id="time-label" class="time-label"></span>
+                <span id="time-offset" class="time-offset"></span>
+              </div>
+              <button id="time-live" type="button" class="text-button time-live" hidden>Now</button>
+              <button
+                id="time-expand"
+                type="button"
+                class="icon-button chevron time-expand"
+                aria-expanded="false"
+                aria-controls="time-scrub"
+                aria-label="Show the time slider"
+              ></button>
+            </div>
+            <div id="time-scrub" class="time-scrub">
+              <input
+                id="time-slider"
+                type="range"
+                aria-label="Move through time, up to three days either way"
+              />
+              <div class="time-ticks" aria-hidden="true">
+                <span>3 days ago</span>
+                <span>now</span>
+                <span>in 3 days</span>
+              </div>
+              <p class="muted small time-note">
+                Away from the present, positions are worked out from today's orbit data and get less
+                accurate the further you go.
+              </p>
+            </div>
+          </section>
         </div>
 
         <section id="overview" class="card overview" aria-labelledby="overview-title">

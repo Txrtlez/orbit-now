@@ -5,6 +5,8 @@
  * application and the tests so that both agree on its shape.
  */
 interface OrbitNowDebug {
+  /** The time the scene is showing, in milliseconds since 1970-01-01 UTC. */
+  displayedTimeMs(): number;
   /** Catalog numbers of every object, in catalog order. */
   noradIds(): number[];
   /** Where an object appears in the view, in CSS pixels, or null if it cannot currently be seen. */

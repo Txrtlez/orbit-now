@@ -20,12 +20,12 @@ test('is switched off until there are objects to search', async ({ page }) => {
   // No catalog is served, as on a developer's machine.
   await page.goto('./');
   await expect(page.locator('html')).toHaveAttribute('data-catalog', 'missing');
-  await expect(page.getByRole('combobox')).toBeDisabled();
+  await expect(page.getByRole('combobox', { name: /^Search/ })).toBeDisabled();
 });
 
 test('suggests objects as the viewer types and selects one with the keyboard', async ({ page }) => {
   const errors = await loadWithObjects(page);
-  const input = page.getByRole('combobox');
+  const input = page.getByRole('combobox', { name: /^Search/ });
   const list = page.getByRole('listbox');
   await expect(input).toBeEnabled();
   await expect(input).toHaveAttribute('placeholder', 'Search 31 objects');
@@ -63,7 +63,7 @@ test('suggests objects as the viewer types and selects one with the keyboard', a
 
 test('finds an object by catalog number and turns the camera to it', async ({ page }) => {
   await loadWithObjects(page);
-  const input = page.getByRole('combobox');
+  const input = page.getByRole('combobox', { name: /^Search/ });
   await input.fill('28057');
   await expect(page.getByRole('option').first()).toContainText('VERIFICATION 28057');
   // Enter with nothing highlighted takes the best match.
@@ -87,7 +87,7 @@ test('finds an object by catalog number and turns the camera to it', async ({ pa
 
 test('selects a suggestion that is clicked or tapped', async ({ page }) => {
   await loadWithObjects(page);
-  await page.getByRole('combobox').fill('29238');
+  await page.getByRole('combobox', { name: /^Search/ }).fill('29238');
   await page.getByRole('option', { name: /VERIFICATION 29238/ }).click();
   await expect(page.locator('html')).toHaveAttribute('data-selected', '29238');
   await expect(page.getByRole('listbox')).toBeHidden();
@@ -95,7 +95,7 @@ test('selects a suggestion that is clicked or tapped', async ({ page }) => {
 
 test('Escape closes the suggestions first, and only then the object panel', async ({ page }) => {
   await loadWithObjects(page);
-  const input = page.getByRole('combobox');
+  const input = page.getByRole('combobox', { name: /^Search/ });
   const list = page.getByRole('listbox');
   const panel = page.locator('#object-panel');
 
@@ -115,7 +115,7 @@ test('Escape closes the suggestions first, and only then the object panel', asyn
 
 test('says so when nothing matches', async ({ page }) => {
   await loadWithObjects(page);
-  await page.getByRole('combobox').fill('no such satellite');
+  await page.getByRole('combobox', { name: /^Search/ }).fill('no such satellite');
   await expect(page.getByRole('listbox')).toBeHidden();
   await expect(page.locator('#search-status')).toHaveText('No matching objects.');
 });

@@ -3,6 +3,8 @@ import { describeBuild } from './app/buildInfo';
 import { renderCatalogStatus, summariseCatalog } from './app/catalogStatus';
 import { createFrameStats } from './app/stats';
 import { initTabs } from './app/tabs';
+import { initTimeBar } from './app/timeBar';
+import { createClock } from './app/clock';
 import { createExplorer, type Explorer } from './app/explorer';
 import { createFilterPanel } from './app/filterPanel';
 import { formatCount } from './app/format';
@@ -41,10 +43,11 @@ function setRendererState(state: RendererState): void {
 }
 
 /**
- * The time the scene shows. For now this is simply the present; Phase 4
- * replaces it with a clock the viewer can pause, speed up and scrub.
+ * The clock the scene runs on. It starts as the real time; the viewer can
+ * pause it, run it faster or move it up to three days either way.
  */
-const sceneClock = (): number => Date.now();
+const clock = createClock(() => Date.now());
+const sceneClock = (): number => clock.now();
 
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
@@ -139,12 +142,15 @@ function startInsetTracking(globe: Globe): void {
     requireElement('whatif-card', HTMLElement),
   ];
   // ...and what runs across the top of it.
-  const bars = [requireElement('topbar', HTMLElement), requireElement('search', HTMLElement)];
+  const bars = [requireElement('topbar', HTMLElement), requireElement('top-stack', HTMLElement)];
+  // The column at the top holds the time controls on any screen too narrow
+  // to put them along the bottom, which is wider than "narrow" above.
+  const crowdedTop = window.matchMedia('(max-width: 1239px)');
   let first = true;
   const update = (): void => {
     let top = 0;
     let bottom = 0;
-    if (narrow.matches) {
+    if (crowdedTop.matches) {
       // A hidden element has no size and is skipped.
       for (const bar of bars) {
         const bounds = bar.getBoundingClientRect();
@@ -152,6 +158,8 @@ function startInsetTracking(globe: Globe): void {
           top = Math.max(top, bounds.bottom);
         }
       }
+    }
+    if (narrow.matches) {
       for (const sheet of sheets) {
         const bounds = sheet.getBoundingClientRect();
         if (bounds.height > 0) {
@@ -167,6 +175,7 @@ function startInsetTracking(globe: Globe): void {
     observer.observe(tracked);
   }
   narrow.addEventListener('change', update);
+  crowdedTop.addEventListener('change', update);
   window.addEventListener('resize', update);
   update();
 }
@@ -280,7 +289,11 @@ async function startCatalog(globe: Globe | null): Promise<void> {
       catalog.records.map((record) => record.sourceMask),
       catalog.sources.map((source) => source.id),
     );
-    const layer = createSatelliteLayer(catalog.records.length, colours, client, sceneClock);
+    const layer = createSatelliteLayer(catalog.records.length, colours, client, clock);
+    // A change of speed, a pause or a jump in time needs keyframes spaced for the new situation.
+    clock.subscribe(() => {
+      layer.resync();
+    });
     const orbitPath = createOrbitPathLayer();
     const marker = createSelectionMarker();
     globe.addLayer(layer);
@@ -335,6 +348,7 @@ async function startCatalog(globe: Globe | null): Promise<void> {
     // A small hook for the end-to-end tests, which need to know where an
     // object is on screen in order to click it. It exposes nothing private.
     window.orbitNowDebug = {
+      displayedTimeMs: sceneClock,
       noradIds: () => objects.records.map((record) => record.noradId),
       screenPositionOf: (noradId) => created.screenPositionOf(objects.indexOfNoradId(noradId)),
     };
@@ -355,4 +369,18 @@ requireElement('build-info', HTMLElement).textContent = describeBuild(
 );
 startOverviewToggle();
 startTabs();
+initTimeBar(
+  {
+    bar: requireElement('time-bar', HTMLElement),
+    play: requireElement('time-play', HTMLButtonElement),
+    speed: requireElement('time-speed', HTMLSelectElement),
+    label: requireElement('time-label', HTMLElement),
+    offset: requireElement('time-offset', HTMLElement),
+    live: requireElement('time-live', HTMLButtonElement),
+    expand: requireElement('time-expand', HTMLButtonElement),
+    slider: requireElement('time-slider', HTMLInputElement),
+  },
+  clock,
+  () => Date.now(),
+);
 void startCatalog(startGlobe());

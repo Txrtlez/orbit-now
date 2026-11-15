@@ -94,8 +94,8 @@ test('hides filtered-out objects from the globe but keeps the selected one', asy
 
   // Catalog number 28057 is in low Earth orbit, so the filter hides it; the
   // search still finds it, and selecting it brings it back into view.
-  await page.getByRole('combobox').fill('28057');
-  await page.getByRole('combobox').press('Enter');
+  await page.getByRole('combobox', { name: /^Search/ }).fill('28057');
+  await page.getByRole('combobox', { name: /^Search/ }).press('Enter');
   await expect(page.locator('html')).toHaveAttribute('data-selected', '28057');
   await expect(page.locator('#object-title')).toHaveText('VERIFICATION 28057');
   await expect

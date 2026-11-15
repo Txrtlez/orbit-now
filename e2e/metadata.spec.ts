@@ -26,8 +26,8 @@ test('shows kind, status, owner and launch date when the catalog carries them', 
   page,
 }) => {
   await load(page, true);
-  await page.getByRole('combobox').fill('5');
-  await page.getByRole('combobox').press('Enter');
+  await page.getByRole('combobox', { name: /^Search/ }).fill('5');
+  await page.getByRole('combobox', { name: /^Search/ }).press('Enter');
   const panel = page.locator('#object-panel');
   await expect(panel.locator('#object-title')).toHaveText('VERIFICATION 00005');
   await expect(panel).toContainText('Payload');
@@ -40,8 +40,8 @@ test('works without those fields, falling back to the launch year from the desig
   page,
 }) => {
   await load(page, false);
-  await page.getByRole('combobox').fill('5');
-  await page.getByRole('combobox').press('Enter');
+  await page.getByRole('combobox', { name: /^Search/ }).fill('5');
+  await page.getByRole('combobox', { name: /^Search/ }).press('Enter');
   const panel = page.locator('#object-panel');
   await expect(panel.locator('#object-title')).toHaveText('VERIFICATION 00005');
   // Catalog number 5 has the designator 1958-002B.

@@ -1,5 +1,5 @@
 import { BufferAttribute, BufferGeometry, Group, Points, ShaderMaterial } from 'three';
-import { hermite } from '../orbit/hermite';
+import { interpolateState } from '../orbit/hermite';
 import type { Keyframe, PropagationClient } from '../orbit/propagationClient';
 import type { FrameInfo, SceneLayer } from './globe';
 
@@ -26,11 +26,40 @@ import type { FrameInfo, SceneLayer } from './globe';
  * bright one.
  */
 
-/** Time between keyframes. The interpolation error at this spacing is measured in VALIDATION.md, V3.3. */
+/**
+ * Time between keyframes when the clock runs at normal speed or is paused.
+ * The interpolation error at this spacing is measured in VALIDATION.md, V3.3.
+ */
 export const KEYFRAME_INTERVAL_MS = 5000;
+
+/**
+ * When the clock runs fast, keyframes are spaced so that a new one is
+ * needed about this often in real time. The background thread needs tens
+ * of milliseconds per keyframe, so twice a second is comfortable.
+ */
+const KEYFRAME_REAL_SPACING_MS = 500;
+
+/**
+ * The widest keyframe spacing allowed, whatever the speed. Interpolation
+ * gets worse as the spacing grows: about 0.1 km at one minute (V3.3) and of
+ * the order of a kilometre at five (V4.1). That is invisible at the scale
+ * of the globe and is the price of fast-forward.
+ */
+export const MAX_KEYFRAME_INTERVAL_MS = 300_000;
 
 /** If the clock gets this many intervals past the newest keyframe, the layer is restarted instead of extrapolating. */
 const STALL_INTERVALS = 3;
+
+/**
+ * The spacing between keyframes, in milliseconds of displayed time, for a
+ * clock running at `rate` displayed seconds per real second.
+ */
+export function keyframeIntervalMs(rate: number): number {
+  return Math.min(
+    MAX_KEYFRAME_INTERVAL_MS,
+    Math.max(KEYFRAME_INTERVAL_MS, Math.abs(rate) * KEYFRAME_REAL_SPACING_MS),
+  );
+}
 
 /** Dot diameter in CSS pixels on a view at least `FULL_SIZE_VIEW_CSS_PX` across. */
 const POINT_SIZE_CSS_PX = 2.4;
@@ -131,6 +160,13 @@ export interface SatelliteLayer extends SceneLayer {
   positionsAt(nowMs: number, out: Float32Array): boolean;
   /** One object's position and velocity at `nowMs`, or null if it has no position. */
   stateAt(index: number, nowMs: number): SceneState | null;
+  /**
+   * Fetch fresh keyframes for the clock as it now stands. Call when the
+   * clock has been paused, resumed, sped up, slowed down or moved, so that
+   * the keyframe spacing suits the new speed. The dots stay on screen
+   * meanwhile.
+   */
+  resync(): void;
   dispose(): void;
 }
 
@@ -138,13 +174,13 @@ export interface SatelliteLayer extends SceneLayer {
  * @param count   number of objects
  * @param colours red, green, blue (0 to 255) per object
  * @param client  the background propagation thread, already initialised for these objects
- * @param nowMs   returns the current time; injected so that it can later be a controllable clock
+ * @param clock   the time being displayed and how fast it is running (displayed seconds per real second)
  */
 export function createSatelliteLayer(
   count: number,
   colours: Uint8Array,
   client: PropagationClient,
-  nowMs: () => number,
+  clock: { now(): number; rate(): number },
 ): SatelliteLayer {
   const geometry = new BufferGeometry();
   const posX = new BufferAttribute(new Float32Array(count * 3), 3);
@@ -212,38 +248,80 @@ export function createSatelliteLayer(
 
   const requestNext = (): void => {
     const requestGeneration = generation;
-    void client.requestKeyframe(slots[newer].timeMs + KEYFRAME_INTERVAL_MS).then((keyframe) => {
-      if (requestGeneration === generation && !disposed) {
-        next = keyframe;
-      }
-    });
+    void client
+      .requestKeyframe(slots[newer].timeMs + keyframeIntervalMs(clock.rate()))
+      .then((keyframe) => {
+        if (requestGeneration === generation && !disposed) {
+          next = keyframe;
+        }
+      });
   };
 
-  /** Fetch a fresh pair of keyframes around the current time and show the dots when they arrive. */
+  // Restarts are never run side by side. If one is asked for while another
+  // is waiting for its keyframes (as happens many times a second while the
+  // time slider is dragged), it is remembered and run once, afterwards,
+  // for wherever the clock is by then.
+  let restarting = false;
+  let restartWanted = false;
+  /** Has another restart been asked for since the current one began? Clears the request. */
+  const takeRestartRequest = (): boolean => {
+    const wanted = restartWanted;
+    restartWanted = false;
+    return wanted;
+  };
+
+  /**
+   * Fetch a fresh pair of keyframes around the current time. Whatever is on
+   * screen stays there, unchanged, until they arrive.
+   */
   const restart = async (): Promise<void> => {
-    generation += 1;
-    const requestGeneration = generation;
-    group.visible = false;
-    next = null;
-    const start = nowMs();
-    const [first, second] = await Promise.all([
-      client.requestKeyframe(start),
-      client.requestKeyframe(start + KEYFRAME_INTERVAL_MS),
-    ]);
-    if (requestGeneration !== generation || disposed) {
+    if (restarting) {
+      restartWanted = true;
       return;
     }
-    write(0, first);
-    write(1, second);
-    newer = 1;
-    group.visible = true;
-    requestNext();
+    restarting = true;
+    do {
+      generation += 1;
+      next = null;
+      const start = clock.now();
+      const [first, second] = await Promise.all([
+        client.requestKeyframe(start),
+        client.requestKeyframe(start + keyframeIntervalMs(clock.rate())),
+      ]);
+      if (disposed) {
+        return;
+      }
+      write(0, first);
+      write(1, second);
+      newer = 1;
+      group.visible = true;
+      requestNext();
+    } while (takeRestartRequest());
+    restarting = false;
   };
 
   const ready = restart();
 
-  /** The interpolation parameters for an instant: the same two numbers the shader receives. */
+  /** Do the two keyframes on the graphics card still serve for this instant? */
+  const covers = (now: number): boolean => {
+    const older: SlotIndex = newer === 1 ? 0 : 1;
+    const spanMs = Math.abs(slots[1].timeMs - slots[0].timeMs);
+    return (
+      now <= slots[newer].timeMs + STALL_INTERVALS * spanMs && now >= slots[older].timeMs - spanMs
+    );
+  };
+
+  /**
+   * The interpolation parameters for an instant: the same two numbers the
+   * shader receives. If the keyframes do not cover the instant (the clock
+   * has just been moved and new ones are on their way), the answer is the
+   * parameters of the picture currently on screen, so that what can be
+   * picked is what can be seen.
+   */
   const interpolationAt = (now: number): { s: number; deltaSeconds: number } => {
+    if (!covers(now)) {
+      return { s: shared.uS.value, deltaSeconds: shared.uDelta.value };
+    }
     const spanMs = slots[1].timeMs - slots[0].timeMs;
     return { s: (now - slots[0].timeMs) / spanMs, deltaSeconds: spanMs / 1000 };
   };
@@ -260,11 +338,9 @@ export function createSatelliteLayer(
       const older: SlotIndex = newer === 1 ? 0 : 1;
 
       // The page was in the background, the device slept, or the clock was
-      // changed: the keyframes no longer bracket "now". Start again.
-      if (
-        now > newestMs + STALL_INTERVALS * KEYFRAME_INTERVAL_MS ||
-        now < slots[older].timeMs - KEYFRAME_INTERVAL_MS
-      ) {
+      // moved: the keyframes no longer bracket "now". Fetch new ones, and
+      // leave the picture exactly as it is until they arrive.
+      if (!covers(now)) {
         void restart();
         return;
       }
@@ -319,38 +395,21 @@ export function createSatelliteLayer(
         return null;
       }
       const { s, deltaSeconds } = interpolationAt(now);
-      const component = (axis: 0 | 1 | 2): { position: number; velocity: number } => {
-        const offset = index * 3 + axis;
-        const p0 = posX.array[offset] ?? 0;
-        const v0 = velX.array[offset] ?? 0;
-        const p1 = posY.array[offset] ?? 0;
-        const v1 = velY.array[offset] ?? 0;
-        return {
-          position: hermite(p0, v0, p1, v1, deltaSeconds, s),
-          // Over five seconds the velocity changes almost linearly, and it is
-          // only displayed to three figures.
-          velocity: v0 + (v1 - v0) * s,
-        };
-      };
-      const x = component(0);
-      const y = component(1);
-      const z = component(2);
-      const startRadiusSquared =
-        (posX.array[index * 3] ?? 0) ** 2 +
-        (posX.array[index * 3 + 1] ?? 0) ** 2 +
-        (posX.array[index * 3 + 2] ?? 0) ** 2;
-      const endRadiusSquared =
-        (posY.array[index * 3] ?? 0) ** 2 +
-        (posY.array[index * 3 + 1] ?? 0) ** 2 +
-        (posY.array[index * 3 + 2] ?? 0) ** 2;
+      const triple = (array: ArrayLike<number>): [number, number, number] => [
+        array[index * 3] ?? 0,
+        array[index * 3 + 1] ?? 0,
+        array[index * 3 + 2] ?? 0,
+      ];
+      const p0 = triple(posX.array);
+      const p1 = triple(posY.array);
       // Same rule as the shader: the origin marks an object that could not be propagated.
-      if (startRadiusSquared <= 0.25 || endRadiusSquared <= 0.25) {
+      if (Math.hypot(...p0) <= 0.5 || Math.hypot(...p1) <= 0.5) {
         return null;
       }
-      return {
-        position: [x.position, y.position, z.position],
-        velocity: [x.velocity, y.velocity, z.velocity],
-      };
+      return interpolateState(p0, triple(velX.array), p1, triple(velY.array), deltaSeconds, s);
+    },
+    resync(): void {
+      void restart();
     },
     dispose(): void {
       disposed = true;

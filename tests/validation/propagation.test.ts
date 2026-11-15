@@ -13,9 +13,10 @@ import { describe, expect, it } from 'vitest';
 import { parseOmmCsv } from '../../pipeline/omm';
 import { epochToUnixMs, recordToOmm, type CatalogRecord } from '../../src/catalog/format';
 import { KM_PER_SCENE_UNIT } from '../../src/geo/sceneFrame';
-import { hermite } from '../../src/orbit/hermite';
+import { hermite, hermiteVelocity, interpolateState } from '../../src/orbit/hermite';
 import { buildPropagationSet, propagateAll } from '../../src/orbit/propagate';
 import { verificationSetAsOmmCsv } from '../pipeline/fixtureCsv';
+import { recordMeasurement } from './measurements';
 import { loadVerificationCases } from './valladoFixtures';
 
 const records: CatalogRecord[] = parseOmmCsv(
@@ -124,9 +125,21 @@ describe('Hermite interpolation between keyframes', () => {
     intervalSeconds: number,
     include: (noradId: number) => boolean,
   ): number {
+    return worstErrors(intervalSeconds, include).metres;
+  }
+
+  /**
+   * The same measurement, also reporting the largest error in the speed
+   * derived from the interpolated curve, as a fraction of the true speed.
+   */
+  function worstErrors(
+    intervalSeconds: number,
+    include: (noradId: number) => boolean,
+  ): { metres: number; speedFraction: number } {
     const a = { p: new Float32Array(records.length * 3), v: new Float32Array(records.length * 3) };
     const b = { p: new Float32Array(records.length * 3), v: new Float32Array(records.length * 3) };
     let worst = 0;
+    let worstSpeedFraction = 0;
     records.forEach((record, index) => {
       if (NOT_PROPAGATABLE_FOR_A_FULL_ORBIT.has(record.noradId) || !include(record.noradId)) {
         return;
@@ -150,21 +163,40 @@ describe('Hermite interpolation between keyframes', () => {
             exact.position.z / KM_PER_SCENE_UNIT,
             -exact.position.y / KM_PER_SCENE_UNIT,
           ];
+          const triple = (array: Float32Array): [number, number, number] => [
+            array[index * 3] ?? 0,
+            array[index * 3 + 1] ?? 0,
+            array[index * 3 + 2] ?? 0,
+          ];
+          const state = interpolateState(
+            triple(a.p),
+            triple(a.v),
+            triple(b.p),
+            triple(b.v),
+            intervalSeconds,
+            s,
+          );
           let squared = 0;
           for (let axis = 0; axis < 3; axis += 1) {
-            const i = index * 3 + axis;
             // Math.fround reproduces the graphics card's 32-bit result.
-            const interpolated = Math.fround(
-              hermite(a.p[i] ?? 0, a.v[i] ?? 0, b.p[i] ?? 0, b.v[i] ?? 0, intervalSeconds, s),
-            );
-            squared += (interpolated - (exactScene[axis] ?? 0)) ** 2;
+            squared += (Math.fround(state.position[axis] ?? 0) - (exactScene[axis] ?? 0)) ** 2;
           }
           worst = Math.max(worst, Math.sqrt(squared) * KM_PER_SCENE_UNIT * 1000);
+          const exactSpeed = Math.hypot(exact.velocity.x, exact.velocity.y, exact.velocity.z);
+          worstSpeedFraction = Math.max(
+            worstSpeedFraction,
+            Math.abs((Math.hypot(...state.velocity) * KM_PER_SCENE_UNIT) / exactSpeed - 1),
+          );
         }
       }
     });
-    return worst;
+    return { metres: worst, speedFraction: worstSpeedFraction };
   }
+
+  /** Eccentricity of each fixture orbit, for telling near-circular orbits from elongated ones. */
+  const eccentricityOf = new Map(records.map((record) => [record.noradId, record.eccentricity]));
+  const nearCircular = (id: number): boolean => (eccentricityOf.get(id) ?? 1) < 0.25;
+  const elongated = (id: number): boolean => !nearCircular(id) && id !== EXTREME_ORBIT;
 
   // Why the error is not simply "tiny". A cubic through two exact states of a
   // smooth orbit would be accurate to millimetres over 5 seconds. The measured
@@ -185,6 +217,28 @@ describe('Hermite interpolation between keyframes', () => {
 
   it('is within 200 metres over 5 seconds even for the extreme orbit beyond the Moon', () => {
     expect(worstErrorMetres(5, (id) => id === EXTREME_ORBIT)).toBeLessThan(200);
+  });
+
+  // When the clock runs fast, keyframes are spaced up to 300 seconds apart
+  // (see keyframeIntervalMs in src/render/satelliteLayer.ts). Results are in
+  // VALIDATION.md, entry V4.1.
+  it('at the widest spacing used in fast-forward, stays within 1 km of SGP4', () => {
+    const round = worstErrors(300, nearCircular);
+    const long = worstErrors(300, elongated);
+    recordMeasurement('interpolation at 300 s, eccentricity below 0.25', round);
+    recordMeasurement('interpolation at 300 s, eccentricity 0.25 or more', long);
+    expect(round.metres).toBeLessThan(1000);
+    expect(long.metres).toBeLessThan(1000);
+    // Really is worse than the 60 second case above.
+    expect(round.metres).toBeGreaterThan(100);
+  });
+
+  it('gives the speed to a few parts in a million at the normal spacing, and within 1% at the widest', () => {
+    const normal = worstErrors(5, (id) => id !== EXTREME_ORBIT);
+    recordMeasurement('interpolation at 5 s, all but the extreme orbit', normal);
+    expect(normal.speedFraction).toBeLessThan(1e-5);
+    expect(worstErrors(300, nearCircular).speedFraction).toBeLessThan(0.01);
+    expect(worstErrors(300, elongated).speedFraction).toBeLessThan(0.01);
   });
 
   it('passes through both keyframes exactly and matches their velocities', () => {
@@ -209,6 +263,18 @@ describe('Hermite interpolation between keyframes', () => {
     // Constant velocity 3 units/s for 4 s: position 10 -> 22.
     for (const s of [0, 0.3, 0.5, 1]) {
       expect(hermite(10, 3, 22, 3, 4, s)).toBeCloseTo(10 + 12 * s, 12);
+      expect(hermiteVelocity(10, 3, 22, 3, 4, s)).toBeCloseTo(3, 12);
     }
+  });
+
+  it('has a velocity that is the slope of the position curve', () => {
+    const h = 1e-6;
+    for (const s of [0, 0.1, 0.5, 0.8, 1 - h]) {
+      const slope = (hermite(1, 9, 2, -4, 5, s + h) - hermite(1, 9, 2, -4, 5, s)) / (h * 5);
+      expect(hermiteVelocity(1, 9, 2, -4, 5, s)).toBeCloseTo(slope, 4);
+    }
+    // At the keyframes it is exactly the keyframe velocity.
+    expect(hermiteVelocity(1, 9, 2, -4, 5, 0)).toBe(9);
+    expect(hermiteVelocity(1, 9, 2, -4, 5, 1)).toBe(-4);
   });
 });
