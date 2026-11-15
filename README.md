@@ -3,19 +3,19 @@
 A live 3D tracker of the publicly tracked objects in Earth orbit, with an illustrative
 debris-cascade ("Kessler syndrome") simulator.
 
-**Status: Phase 1 of 7 (architecture and scaffold).** The app currently shows an untextured globe
+**Status: Phase 1 built, Phase 2 partly done.** The app currently shows an untextured globe
 with a latitude/longitude grid. It loads no orbital data and shows no satellites yet. Nothing in it
 should be read as a statement about the real state of Earth orbit.
 
-| Phase | Scope                                                                     | State                                            |
-| ----- | ------------------------------------------------------------------------- | ------------------------------------------------ |
-| 1     | Repository structure, tooling, CI, deploy pipeline, empty app             | Built; deployment waiting on a GitHub repository |
-| 2     | Scheduled OMM data pipeline; SGP4 validated against published vectors     | Not started                                      |
-| 3     | Earth rendering, all objects moving, picking, info panel, filters, search | Not started                                      |
-| 4     | Overhead passes with visibility; time controls                            | Not started                                      |
-| 5     | Historical debris layers; growth-of-orbit chart                           | Not started                                      |
-| 6     | "What if?" mode: breakup model, propagation, reentry, cascade statistics  | Not started                                      |
-| 7     | Guided tour, shareable links, About page, accessibility, launch           | Not started                                      |
+| Phase | Scope                                                                     | State                                                      |
+| ----- | ------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| 1     | Repository structure, tooling, CI, deploy pipeline, empty app             | Built; not deployed (see Known issues)                     |
+| 2     | Scheduled OMM data pipeline; SGP4 validated against published vectors     | SGP4 validated; pipeline waiting on a data-source decision |
+| 3     | Earth rendering, all objects moving, picking, info panel, filters, search | Not started                                                |
+| 4     | Overhead passes with visibility; time controls                            | Not started                                                |
+| 5     | Historical debris layers; growth-of-orbit chart                           | Not started                                                |
+| 6     | "What if?" mode: breakup model, propagation, reentry, cascade statistics  | Not started                                                |
+| 7     | Guided tour, shareable links, About page, accessibility, launch           | Not started                                                |
 
 ## Run it
 
@@ -87,6 +87,8 @@ src/
   geo/                     Earth geometry: WGS 84 constants, coordinate conversions
   render/                  three.js scene, camera framing, latitude/longitude grid
   modes/whatif/            "What if?" mode, loaded on demand as a separate file
+tests/validation/          Launch-gate validations against published reference data
+tests/fixtures/            The reference data itself, with provenance notes
 e2e/                       Playwright browser tests, run against the production build
 scripts/                   Build-time checks (bundle size budget)
 .github/workflows/         CI and GitHub Pages deployment
@@ -190,9 +192,41 @@ The interface uses the operating system's own font. This avoids a font download,
 third party, and text shifting when a web font arrives. A self-hosted typeface can be reconsidered
 in Phase 7 if the design calls for one.
 
+## Open decision: where the orbital data comes from
+
+The brief specifies CelesTrak GP data, fetched by a scheduled GitHub Action, covering every publicly
+tracked object. Reading CelesTrak's own pages on 2026-11-14 turned up two facts that conflict with
+that plan. The pipeline has not been built, because the choice below changes what it has to do.
+
+1. **CelesTrak has no "everything" query.** Its GP data is served in named groups. The `active`
+   group is labelled "Active Satellites". The only debris groups are for three specific events
+   (`fengyun-1c-debris`, `iridium-33-debris`, `cosmos-2251-debris`). No listed group covers rocket
+   bodies, dead satellites or debris in general, and there is no group for Cosmos 1408 debris.
+   CelesTrak's documentation also says there is no reason to download all of the groups.
+2. **CelesTrak now enforces one download per data set per update, by IP address.** GP data updates
+   every 2 hours. A repeat request inside that window gets HTTP 403, and its policy says automated
+   clients must stop on any non-200 response and report to a human; repeated errors get the address
+   firewalled. GitHub-hosted Actions runners share IP addresses with other GitHub users, and at
+   least one other project has reported a 403 caused by a different client on the same shared
+   address. So a scheduled Action can be refused through no fault of its own.
+
+Options:
+
+- **A. CelesTrak groups only.** Fetch `active` and the three debris groups, a few times a day,
+  keeping the previous data whenever a fetch is refused. Needs no account. The app would then show
+  active satellites plus three debris clouds, and must say so; it could not claim to show every
+  tracked object.
+- **B. Space-Track.org.** The US Space Force's own service offers the full catalog, but requires
+  an account and acceptance of a user agreement. Whether that agreement permits republishing the
+  data on a public website has not been checked and must be, by the account holder, before this
+  option is used.
+- **C. Ask CelesTrak.** Its site has a special data request form. A short, specific request might
+  be granted, or might not.
+
 ## Known issues
 
-- **Not deployed.** No GitHub repository was available when this phase was built, so the two
+- **Not deployed.** The repository `Txrtlez/orbit-now` exists and is empty. Pushing to it from the
+  build session was refused because the Claude GitHub App has no access to it. As a result the two
   workflow files have never run. They use the current major versions of each action as of
   2026-11-14 (`checkout@v7`, `setup-node@v7`, `configure-pages@v6`, `upload-pages-artifact@v5`,
   `deploy-pages@v5`, `upload-artifact@v7`), but until they run once they are untested.
@@ -211,7 +245,10 @@ in Phase 7 if the design calls for one.
 ## Credits
 
 - [three.js](https://threejs.org/) (MIT licence) for 3D rendering.
+- [satellite.js](https://github.com/shashwatak/satellite-js) (MIT licence) for SGP4/SDP4 propagation.
 - WGS 84 parameters: National Geospatial-Intelligence Agency.
+- SGP4 verification data: Vallado, Crawford, Hujsak and Kelso, "Revisiting Spacetrack Report #3"
+  (AIAA 2006-6753), obtained through the `sgp4` Python package by Brandon Rhodes (MIT licence).
 
 No Earth imagery or orbital data is used yet. Sources for both will be credited here and in the
 in-app About page when they are added.

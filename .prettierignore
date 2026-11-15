@@ -3,3 +3,5 @@ coverage
 playwright-report
 test-results
 package-lock.json
+tests/fixtures/vallado-2006/SGP4-VER.TLE
+tests/fixtures/vallado-2006/tcppver.out

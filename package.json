@@ -22,6 +22,7 @@
     "size": "node scripts/check-bundle-size.mjs"
   },
   "dependencies": {
+    "satellite.js": "7.2.0",
     "three": "0.187.0"
   },
   "devDependencies": {
