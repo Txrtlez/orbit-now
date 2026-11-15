@@ -86,7 +86,7 @@ Every comparison against an outside reference is recorded in [`VALIDATION.md`](.
 with numbers, dates and the command that reproduces it. Of the four launch gates, the SGP4 test
 vectors pass with one documented exception and the ISS passes agree with Heavens-Above at four
 places; the other two (breakup-model curves, J2 nodal precession) belong to Phase 6 and are listed
-there as not yet run. Phase 5 has no launch gate; its checks are V5.1 to V5.6.
+there as not yet run. Phase 5 has no launch gate; its checks are V5.1 to V5.7.
 
 The validation tests assert limits; the numbers actually measured are written to a file when asked:
 
@@ -576,6 +576,11 @@ Unproven or incomplete parts of Phase 5:
 - **The break-ups are marked on the growth chart but the two are not linked:** a mark cannot be
   clicked to open the event.
 - **The chart has only been looked at in Chromium,** like the rest of the site.
+
+- **A fault that had been in the site since Phase 3 was found and fixed in this phase:** on a touch
+  screen, a tap on an object could also press whatever opened under the finger, such as the close
+  button of the object's own details (VALIDATION.md, V5.6). It was confirmed and fixed in Chrome's
+  emulation of a phone, not on a real one.
 
 Limits of the passes panel:
 

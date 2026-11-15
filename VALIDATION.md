@@ -1032,3 +1032,72 @@ The worst pair is rocket bodies and mission-related debris, whose lines also run
 Colour is not the only way to tell the lines apart: the legend names each with its figure for the
 month in view, the names stand beside the line ends where there is room, and the table gives the
 same figures. The validator is a development tool and is not part of this repository.
+
+### V5.6 A fault found on the way: a tap could press what opened under the finger
+
+- **Date:** 2026-11-15
+- **How it showed.** The Deploy run for the two documentation commits (43762072159, `main` at
+  `f207a3e`, 21:09 UTC) failed, and so did the first CI run of this phase (43764218857). Both failed
+  the same phone-sized browser test, twice each: after closing an object's details, tapping an
+  object again did not show its details. Neither commit had touched that code, the same test had
+  passed five times in the previous hour, and it passed in the build environment throughout.
+- **Cause.** After a touch ends, a browser sends a click to the same spot, to whatever is there by
+  then. On a phone-sized screen a tap on an object brings its sheet of details up under the finger.
+  The click then lands on the sheet, and if the finger was where the sheet's close button appears,
+  it closes the sheet at once. Whether that happens depends on where the objects are on the screen,
+  which changes through the day, and on the exact height of the sheet, which differs between the
+  two environments. That is why it failed at one hour and not another, and on GitHub and not here.
+- **Confirmed, not inferred.** In headless Chrome at Pixel 7 size with the real catalog, a tap on
+  an object low on the screen was followed by `mousedown`, `mouseup` and `click` on an element of
+  the sheet that had just opened. After the change below, the same tap is followed by nothing.
+- **The change.** The globe now cancels the touch's default action when it ends
+  (`src/render/globe.ts`), which is what makes the browser send the click. Taps are read from
+  pointer events and are unaffected. A browser test now taps an object and asserts that no click
+  or mouse press reaches the page afterwards.
+- **Result.** CI run 43765596412 on the next commit passed, including the test that had failed.
+  **This was a fault a person would have met**, not only a test: on a phone, tapping an object in
+  the lower part of the view could select it and immediately deselect it, or press another control
+  of the sheet. It has been in the site since Phase 3.
+- **Not checked:** on a real phone. The reasoning and the fix are about how browsers treat touches
+  in general; only Chrome's emulation of a phone was used.
+- **Consequence for `main`.** Because that Deploy run failed, the two documentation commits were on
+  `main` for a time without having been deployed. They change `VALIDATION.md` only, so the site
+  itself was not affected.
+
+### V5.7 Build and browser checks at the end of Phase 5
+
+- **Date:** 2026-11-15
+- **Environment:** as in V1.4 (Node.js 22.23.4, headless Chrome with software rendering). No
+  physical device.
+
+| Check                                             | Result                                          |
+| ------------------------------------------------- | ----------------------------------------------- |
+| Prettier, ESLint (strict, type-aware), TypeScript | Pass, 0 findings                                |
+| Unit and validation tests                         | 423 of 423 pass (was 388)                       |
+| Browser tests, desktop and Pixel 7 emulation      | 95 pass, 1 skipped by design, of 96 (was 72)    |
+| Initial download (HTML + JS + CSS, gzip level 9)  | 179.8 kB against a 300 kB budget (was 175.6 kB) |
+| Growth chart, fetched only when opened            | 34.1 kB; 10.2 kB after gzip                     |
+| GitHub Actions, branch `phase-5-history-growth`   | Run 43765596412: pass                           |
+
+The one skipped test is the check of V5.6, which applies to touch screens only and is skipped in
+the desktop run.
+
+The 24 new browser tests cover, at both sizes: opening each of the three events and reading its
+story and sources; that the globe then shows exactly that event's objects and that the filters
+report it; moving from one event to another; that the Cosmos 1408 entry hides nothing and says
+why; that the events follow filters set by hand; a catalog with none of the debris; that the
+growth chart's code is not requested until it is opened; its citation, legend and five lines; its
+slider by keyboard and by value; that it plays when motion is allowed, is not stopped by a resting
+mouse, and can be paused; its table and notes; that it fits a phone-sized screen; and that Escape
+closes it without clearing a selection. They use the SGP4 verification element sets with a few
+listed under pretend debris groups, a test fixture and not real data. The chart's own numbers are
+the real ones in every test.
+
+**Looked at, not tested.** The built page was opened with the real catalog of 2026-11-15T19:52Z at
+1280 × 800 and at Pixel 7 size, and screenshots of the three events and of the chart at May 2026
+and February 2009 were inspected by eye. That is how two label collisions on the chart were found
+and removed.
+
+**Not done:** any real phone or tablet; Firefox, Safari and Edge; a screen reader. The chart's
+dialog relies on the browser's own dialog element for keyboard focus, which was exercised with the
+keyboard in the tests but not with assistive technology.
