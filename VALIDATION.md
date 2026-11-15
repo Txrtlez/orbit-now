@@ -1101,3 +1101,15 @@ and removed.
 **Not done:** any real phone or tablet; Firefox, Safari and Edge; a screen reader. The chart's
 dialog relies on the browser's own dialog element for keyboard focus, which was exercised with the
 keyboard in the tests but not with assistive technology.
+
+**The deployed site.** GitHub Actions: CI runs 43765596412, 43766365468 and 43766384465 on the
+branch passed; Deploy run 43767110905 on `main` passed at 22:08 UTC. The live page was then opened
+in Chromium 156 on the owner's PC at about 22:10 UTC and reported build `bb7fcd9` with 19,572
+objects. Opening the three events in turn gave "Showing 1,988 of 19,572 objects", "Showing 690 of
+19,572 objects" (581 and 109) and "Showing 19,572 objects", the same figures as V5.4, and closing
+the last left no filter on. The growth chart's file was not requested until the chart was opened
+(one request, 10,457 bytes transferred), it drew five lines, and at its last month it read "May
+2026, 33,480 objects". A screenshot showed the chart's labels clear of each other with that
+machine's fonts. That browser reported that reduced motion is asked for, so the chart opened on its
+last month and did not play by itself; playing was therefore not seen on the live site, only in the
+tests. The browser pane was in the background, so no frame rate was measured.
