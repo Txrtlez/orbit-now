@@ -51,3 +51,74 @@ export function geodeticToEcef(
 export function degToRad(degrees: number): number {
   return (degrees * Math.PI) / 180;
 }
+
+/** Radians to degrees. */
+export function radToDeg(radians: number): number {
+  return (radians * 180) / Math.PI;
+}
+
+/** A position given as latitude, longitude and height on the WGS 84 ellipsoid. */
+export interface Geodetic {
+  /** Geodetic latitude in radians, north positive. */
+  readonly latitudeRad: number;
+  /** Longitude in radians, east positive, between -pi and pi. */
+  readonly longitudeRad: number;
+  /** Height above the ellipsoid in kilometres. */
+  readonly heightKm: number;
+}
+
+/**
+ * Convert Earth-centred, Earth-fixed coordinates to geodetic latitude,
+ * longitude and height on the WGS 84 ellipsoid: the inverse of
+ * `geodeticToEcef`.
+ *
+ * STANDARD MODEL. There is no simple closed form, because the latitude
+ * appears on both sides of the equation. The usual fixed-point iteration is
+ * used: start from the latitude a sphere would give, then repeat
+ *
+ *   N   = a / sqrt(1 - e^2 sin^2(lat))
+ *   lat = atan2(z + e^2 N sin(lat), sqrt(x^2 + y^2))
+ *
+ * until the latitude stops changing. For any point at or above the surface
+ * this settles to better than a millimetre within a handful of rounds. The
+ * tests check it against `geodeticToEcef` over the whole globe and from the
+ * surface to beyond geostationary height.
+ *
+ * "Height" here is height above the ellipsoid, which is what a satellite's
+ * altitude conventionally means. It is not height above the local terrain.
+ */
+export function ecefToGeodetic(xKm: number, yKm: number, zKm: number): Geodetic {
+  const horizontal = Math.hypot(xKm, yKm);
+  const longitudeRad = Math.atan2(yKm, xKm);
+
+  /** Radius of curvature in the prime vertical at a given latitude. */
+  const primeVerticalRadius = (latitude: number): number => {
+    const sinLat = Math.sin(latitude);
+    return WGS84_A_KM / Math.sqrt(1 - WGS84_E2 * sinLat * sinLat);
+  };
+
+  let latitudeRad = Math.atan2(zKm, horizontal * (1 - WGS84_E2));
+  for (let round = 0; round < 12; round += 1) {
+    const next = Math.atan2(
+      zKm + WGS84_E2 * primeVerticalRadius(latitudeRad) * Math.sin(latitudeRad),
+      horizontal,
+    );
+    const change = Math.abs(next - latitudeRad);
+    latitudeRad = next;
+    if (change < 1e-15) {
+      break;
+    }
+  }
+
+  // Two expressions for the height; each is ill-conditioned where the other
+  // is not (near the poles cos(lat) approaches zero, near the equator sin(lat) does).
+  const sinLat = Math.sin(latitudeRad);
+  const cosLat = Math.cos(latitudeRad);
+  const radius = primeVerticalRadius(latitudeRad);
+  const heightKm =
+    Math.abs(cosLat) > Math.abs(sinLat)
+      ? horizontal / cosLat - radius
+      : zKm / sinLat - radius * (1 - WGS84_E2);
+
+  return { latitudeRad, longitudeRad, heightKm };
+}

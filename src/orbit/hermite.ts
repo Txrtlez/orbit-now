@@ -20,7 +20,7 @@
  * The formula stays valid when dt is negative (the "second" keyframe is the
  * earlier one), which lets the renderer overwrite whichever keyframe is
  * older without swapping buffers. The vertex shader in
- * src/render/satellites.ts contains the same expression; this function
+ * src/render/satelliteLayer.ts contains the same expression; this function
  * exists so the mathematics can be tested.
  *
  * @param p0 position at the first keyframe

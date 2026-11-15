@@ -3,11 +3,15 @@ import { describeBuild } from './app/buildInfo';
 import { renderCatalogStatus, summariseCatalog } from './app/catalogStatus';
 import { createFrameStats } from './app/stats';
 import { initTabs } from './app/tabs';
+import { createExplorer, type Explorer } from './app/explorer';
 import { CATALOG_URL, loadCatalog } from './catalog/load';
+import { buildObjectIndex } from './catalog/objectIndex';
 import { startPropagation } from './orbit/propagationClient';
 import { createGlobe, type Globe } from './render/globe';
+import { createOrbitPathLayer } from './render/orbitPathLayer';
 import { coloursForObjects } from './render/palette';
 import { createSatelliteLayer } from './render/satelliteLayer';
+import { createSelectionMarker } from './render/selectionMarker';
 
 /**
  * Look up an element by id and check that it is the kind of element the code
@@ -38,10 +42,18 @@ function setRendererState(state: RendererState): void {
  */
 const sceneClock = (): number => Date.now();
 
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+/**
+ * The part of the page that responds to taps on the globe. It can only be
+ * created once the orbital data has arrived, which is after the globe has
+ * started reporting taps, so the globe is given functions that look it up.
+ */
+let explorer: Explorer | null = null;
+
 function startGlobe(): Globe | null {
   const canvas = requireElement('globe', HTMLCanvasElement);
   const status = requireElement('render-status', HTMLElement);
-  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
   setRendererState('starting');
   try {
@@ -60,6 +72,12 @@ function startGlobe(): Globe | null {
         setRendererState('ready');
       },
       onFrame: recordFrame ?? undefined,
+      onTap: (x, y, kind) => {
+        explorer?.handleTap(x, y, kind);
+      },
+      onHover: (position) => {
+        explorer?.handleHover(position);
+      },
       onContextLost: () => {
         status.textContent = 'The 3D view was paused by the browser. Trying to restore it…';
         setRendererState('context-lost');
@@ -73,6 +91,7 @@ function startGlobe(): Globe | null {
     reducedMotion.addEventListener('change', (event) => {
       globe.setAutoRotate(!event.matches);
     });
+    startInsetTracking(globe);
     return globe;
   } catch (error: unknown) {
     console.warn('Orbit Now could not start the 3D view:', error);
@@ -83,8 +102,63 @@ function startGlobe(): Globe | null {
   }
 }
 
+/**
+ * The overview card can be folded down to its title, so that on a phone it
+ * does not cover the globe. It starts folded on narrow screens.
+ */
+function startOverviewToggle(): void {
+  const button = requireElement('overview-toggle', HTMLButtonElement);
+  const body = requireElement('overview-body', HTMLElement);
+  const setExpanded = (expanded: boolean): void => {
+    body.hidden = !expanded;
+    button.setAttribute('aria-expanded', String(expanded));
+    button.setAttribute('aria-label', expanded ? 'Hide details' : 'Show details');
+  };
+  setExpanded(!window.matchMedia('(max-width: 719px)').matches);
+  button.addEventListener('click', () => {
+    setExpanded(body.hidden !== false);
+  });
+}
+
+/**
+ * On a narrow screen the cards are sheets across the bottom of the view.
+ * Tell the globe how much of the view they cover, so that it keeps the
+ * Earth centred in the part that can be seen. On a wide screen the cards
+ * sit beside the Earth and nothing needs to move.
+ */
+function startInsetTracking(globe: Globe): void {
+  const narrow = window.matchMedia('(max-width: 719px)');
+  const cards = [
+    requireElement('overview', HTMLElement),
+    requireElement('object-panel', HTMLElement),
+    requireElement('whatif-card', HTMLElement),
+  ];
+  let first = true;
+  const update = (): void => {
+    let covered = 0;
+    if (narrow.matches) {
+      for (const card of cards) {
+        const bounds = card.getBoundingClientRect();
+        // A hidden card has no size.
+        if (bounds.height > 0) {
+          covered = Math.max(covered, window.innerHeight - bounds.top);
+        }
+      }
+    }
+    globe.setBottomInset(covered, !first && !reducedMotion.matches);
+    first = false;
+  };
+  const observer = new ResizeObserver(update);
+  for (const card of cards) {
+    observer.observe(card);
+  }
+  narrow.addEventListener('change', update);
+  window.addEventListener('resize', update);
+  update();
+}
+
 function startTabs(): void {
-  const whatIfPanel = requireElement('panel-whatif', HTMLElement);
+  const whatIfPanel = requireElement('whatif-card', HTMLElement);
 
   initTabs([
     {
@@ -93,7 +167,7 @@ function startTabs(): void {
     },
     {
       tab: requireElement('tab-whatif', HTMLButtonElement),
-      panel: whatIfPanel,
+      panel: requireElement('panel-whatif', HTMLElement),
       onFirstShow: () => {
         whatIfPanel.textContent = 'Loading…';
         import('./modes/whatif/whatif')
@@ -122,14 +196,21 @@ function setCatalogState(state: CatalogState): void {
  * the globe.
  */
 async function startCatalog(globe: Globe | null): Promise<void> {
+  const headline = requireElement('catalog-headline', HTMLElement);
   const container = requireElement('catalog-status', HTMLElement);
   let catalog;
   try {
     catalog = await loadCatalog(CATALOG_URL, (url) => fetch(url));
-    renderCatalogStatus(container, catalog === null ? null : summariseCatalog(catalog), Date.now());
+    renderCatalogStatus(
+      headline,
+      container,
+      catalog === null ? null : summariseCatalog(catalog),
+      Date.now(),
+    );
     setCatalogState(catalog === null ? 'missing' : 'loaded');
   } catch (error: unknown) {
     console.warn('Orbit Now could not load its orbital data:', error);
+    headline.textContent = 'Orbital data unavailable';
     const message = document.createElement('p');
     message.textContent = 'The orbital data could not be loaded. Reload the page to try again.';
     container.replaceChildren(message);
@@ -147,8 +228,46 @@ async function startCatalog(globe: Globe | null): Promise<void> {
       catalog.sources.map((source) => source.id),
     );
     const layer = createSatelliteLayer(catalog.records.length, colours, client, sceneClock);
+    const orbitPath = createOrbitPathLayer();
+    const marker = createSelectionMarker();
     globe.addLayer(layer);
+    globe.addLayer(orbitPath);
+    globe.addLayer(marker);
     await layer.ready;
+
+    const objects = buildObjectIndex(catalog, client.orbits);
+    const created = createExplorer({
+      globe,
+      layer,
+      marker,
+      orbitPath,
+      client,
+      objects,
+      colourOf: (index) =>
+        `rgb(${String(colours[index * 3] ?? 0)} ${String(colours[index * 3 + 1] ?? 0)} ${String(colours[index * 3 + 2] ?? 0)})`,
+      nowMs: sceneClock,
+      reducedMotion: () => reducedMotion.matches,
+      panelElement: requireElement('object-panel', HTMLElement),
+      hoverLabel: requireElement('hover-label', HTMLElement),
+      canvas: requireElement('globe', HTMLCanvasElement),
+      onSelectionChange: (index) => {
+        // For the stylesheet (which rearranges the cards on a phone when
+        // something is selected) and for the end-to-end tests.
+        const record = objects.records[index];
+        if (record === undefined) {
+          delete document.documentElement.dataset.selected;
+        } else {
+          document.documentElement.dataset.selected = String(record.noradId);
+        }
+      },
+    });
+    explorer = created;
+    // A small hook for the end-to-end tests, which need to know where an
+    // object is on screen in order to click it. It exposes nothing private.
+    window.orbitNowDebug = {
+      noradIds: () => objects.records.map((record) => record.noradId),
+      screenPositionOf: (noradId) => created.screenPositionOf(objects.indexOfNoradId(noradId)),
+    };
     // For the end-to-end tests and the frame-rate readout.
     document.documentElement.dataset.objects = String(catalog.records.length);
     document.documentElement.dataset.propagationFailures = String(layer.failures());
@@ -164,5 +283,6 @@ requireElement('build-info', HTMLElement).textContent = describeBuild(
   __BUILD_COMMIT__,
   __BUILD_TIME__,
 );
+startOverviewToggle();
 startTabs();
 void startCatalog(startGlobe());

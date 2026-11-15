@@ -3,24 +3,46 @@
  * objects never makes the page stutter.
  *
  * Messages in:
- *   { type: 'init', records }        prepare SGP4 for a catalog
- *   { type: 'propagate', id, unixMs } compute all states at one instant
+ *   { type: 'init', records }                    prepare SGP4 for a catalog
+ *   { type: 'propagate', id, unixMs }            compute all states at one instant
+ *   { type: 'orbit', id, index, unixMs, segments } compute one object's path over a revolution
  * Messages out:
- *   { type: 'ready', count }
+ *   { type: 'ready', count, periodMinutes, apogeeKm, perigeeKm }
  *   { type: 'keyframe', id, unixMs, positions, velocities, failures }
+ *   { type: 'orbit', id, points }
  *
  * The result arrays are transferred, not copied: ownership of their memory
  * moves to the main thread at no cost.
  */
 import type { CatalogRecord } from '../catalog/format';
-import { buildPropagationSet, propagateAll, type PropagationSet } from './propagate';
+import {
+  buildPropagationSet,
+  propagateAll,
+  sampleOrbitPath,
+  summariseOrbits,
+  type PropagationSet,
+} from './propagate';
 
 export type WorkerRequest =
   | { readonly type: 'init'; readonly records: readonly CatalogRecord[] }
-  | { readonly type: 'propagate'; readonly id: number; readonly unixMs: number };
+  | { readonly type: 'propagate'; readonly id: number; readonly unixMs: number }
+  | {
+      readonly type: 'orbit';
+      readonly id: number;
+      readonly index: number;
+      readonly unixMs: number;
+      readonly segments: number;
+    };
 
 export type WorkerResponse =
-  | { readonly type: 'ready'; readonly count: number }
+  | {
+      readonly type: 'ready';
+      readonly count: number;
+      readonly periodMinutes: Float32Array;
+      readonly apogeeKm: Float32Array;
+      readonly perigeeKm: Float32Array;
+    }
+  | { readonly type: 'orbit'; readonly id: number; readonly points: Float32Array }
   | {
       readonly type: 'keyframe';
       readonly id: number;
@@ -43,11 +65,20 @@ scope.onmessage = (event) => {
   const request = event.data;
   if (request.type === 'init') {
     set = buildPropagationSet(request.records);
-    scope.postMessage({ type: 'ready', count: set.satrecs.length }, []);
+    const { periodMinutes, apogeeKm, perigeeKm } = summariseOrbits(set);
+    scope.postMessage(
+      { type: 'ready', count: set.satrecs.length, periodMinutes, apogeeKm, perigeeKm },
+      [periodMinutes.buffer, apogeeKm.buffer, perigeeKm.buffer],
+    );
     return;
   }
   if (set === null) {
-    throw new Error('The propagation worker was asked for a keyframe before it was initialised');
+    throw new Error('The propagation worker was asked for results before it was initialised');
+  }
+  if (request.type === 'orbit') {
+    const points = sampleOrbitPath(set, request.index, request.unixMs, request.segments);
+    scope.postMessage({ type: 'orbit', id: request.id, points }, [points.buffer]);
+    return;
   }
   const positions = new Float32Array(set.satrecs.length * 3);
   const velocities = new Float32Array(set.satrecs.length * 3);

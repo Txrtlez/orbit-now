@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { degToRad, geodeticToEcef } from './geodetic';
+import { degToRad, ecefToGeodetic, geodeticToEcef, radToDeg } from './geodetic';
 import { WGS84_A_KM, WGS84_B_KM, WGS84_E2 } from './wgs84';
 
 /** One nanometre, expressed in kilometres. Used as a "numerically exact" tolerance. */
@@ -76,5 +76,53 @@ describe('degToRad', () => {
     expect(degToRad(180)).toBe(Math.PI);
     expect(degToRad(-90)).toBe(-Math.PI / 2);
     expect(degToRad(0)).toBe(0);
+  });
+});
+
+describe('ecefToGeodetic', () => {
+  it('inverts geodeticToEcef from the surface to beyond geostationary height', () => {
+    let worstAngle = 0;
+    let worstHeightKm = 0;
+    for (const heightKm of [0, 0.5, 400, 2000, 20_200, 35_786, 100_000]) {
+      for (let latDeg = -90; latDeg <= 90; latDeg += 7.5) {
+        for (let lonDeg = -172; lonDeg < 180; lonDeg += 31) {
+          const p = geodeticToEcef(degToRad(latDeg), degToRad(lonDeg), heightKm);
+          const g = ecefToGeodetic(p.x, p.y, p.z);
+          worstAngle = Math.max(worstAngle, Math.abs(radToDeg(g.latitudeRad) - latDeg));
+          if (Math.abs(latDeg) !== 90) {
+            // Longitude has no meaning exactly at a pole.
+            worstAngle = Math.max(worstAngle, Math.abs(radToDeg(g.longitudeRad) - lonDeg));
+          }
+          worstHeightKm = Math.max(worstHeightKm, Math.abs(g.heightKm - heightKm));
+        }
+      }
+    }
+    // 1e-9 degrees is about a tenth of a millimetre on the ground.
+    expect(worstAngle).toBeLessThan(1e-9);
+    // One micrometre.
+    expect(worstHeightKm).toBeLessThan(1e-9);
+  });
+
+  it('gives the equatorial and polar radii as height zero', () => {
+    expect(ecefToGeodetic(WGS84_A_KM, 0, 0).heightKm).toBeCloseTo(0, 9);
+    const north = ecefToGeodetic(0, 0, WGS84_B_KM);
+    expect(north.heightKm).toBeCloseTo(0, 9);
+    expect(radToDeg(north.latitudeRad)).toBeCloseTo(90, 9);
+    const south = ecefToGeodetic(0, 0, -WGS84_B_KM - 10);
+    expect(south.heightKm).toBeCloseTo(10, 9);
+    expect(radToDeg(south.latitudeRad)).toBeCloseTo(-90, 9);
+  });
+
+  it('measures height along the ellipsoid normal, not from the centre', () => {
+    // At mid latitudes the surface lies between the polar and the equatorial
+    // radius from the centre. A point 7000 km from the centre in the geocentric
+    // 45 degree direction is therefore higher than 7000 - 6378.137 km and
+    // lower than 7000 - 6356.752 km.
+    const g = ecefToGeodetic(7000 * Math.SQRT1_2, 0, 7000 * Math.SQRT1_2);
+    expect(g.heightKm).toBeGreaterThan(7000 - WGS84_A_KM);
+    expect(g.heightKm).toBeLessThan(7000 - WGS84_B_KM);
+    // Geodetic latitude exceeds geocentric latitude in the northern hemisphere.
+    expect(radToDeg(g.latitudeRad)).toBeGreaterThan(45);
+    expect(radToDeg(g.latitudeRad)).toBeLessThan(45.2);
   });
 });

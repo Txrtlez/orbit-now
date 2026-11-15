@@ -1,5 +1,6 @@
 import type { Catalog } from '../catalog/format';
 import { cssColourOfGroup } from '../render/palette';
+import { formatCount } from './format';
 
 /**
  * Describe a length of time in words, rounded down to a whole unit:
@@ -56,18 +57,17 @@ export function summariseCatalog(catalog: Catalog): CatalogSummary {
   };
 }
 
-/** Whole numbers with thousands separators, e.g. 17,234. */
-const COUNT_FORMAT = new Intl.NumberFormat('en-US');
-
 /**
- * Fill the data-status area of the page.
+ * Fill the data-status areas of the page.
  *
- * @param container element to render into; its existing content is replaced
- * @param summary   the catalog's summary, or null if this copy of the site has no catalog
- * @param nowMs     current time in milliseconds since 1970-01-01 UTC
+ * @param headline element for the one-line summary that is always visible
+ * @param details  element for the longer description; its existing content is replaced
+ * @param summary  the catalog's summary, or null if this copy of the site has no catalog
+ * @param nowMs    current time in milliseconds since 1970-01-01 UTC
  */
 export function renderCatalogStatus(
-  container: HTMLElement,
+  headline: HTMLElement,
+  details: HTMLElement,
   summary: CatalogSummary | null,
   nowMs: number,
 ): void {
@@ -81,16 +81,15 @@ export function renderCatalogStatus(
   };
 
   if (summary === null) {
-    container.replaceChildren(
+    headline.textContent = 'No orbital data';
+    details.replaceChildren(
       paragraph('This copy of the site has no orbital data yet, so there is nothing to show.'),
     );
     return;
   }
 
   const providers = [...new Set(summary.sources.map((source) => source.provider))].join(', ');
-  const headline = paragraph(
-    `Showing ${COUNT_FORMAT.format(summary.objectCount)} objects where they are right now. This is not the full public catalog.`,
-  );
+  headline.textContent = `Showing ${formatCount(summary.objectCount)} objects`;
 
   const list = document.createElement('ul');
   list.className = 'source-list';
@@ -101,7 +100,7 @@ export function renderCatalogStatus(
     swatch.className = 'swatch';
     swatch.style.backgroundColor = cssColourOfGroup(source.id);
     swatch.setAttribute('aria-hidden', 'true');
-    item.append(swatch, `${source.label}: ${COUNT_FORMAT.format(source.objectCount)}`);
+    item.append(swatch, `${source.label}: ${formatCount(source.objectCount)}`);
     list.append(item);
   }
 
@@ -110,11 +109,11 @@ export function renderCatalogStatus(
       ? 'Download time unknown for part of this data.'
       : `Downloaded ${describeAge(nowMs - summary.oldestFetchMs)} ago or more recently.`;
 
-  const details = document.createElement('details');
-  details.className = 'details';
+  const about = document.createElement('details');
+  about.className = 'details';
   const summaryElement = document.createElement('summary');
   summaryElement.textContent = 'About this data';
-  details.append(
+  about.append(
     summaryElement,
     paragraph(
       `Orbital elements published by ${providers}. Only these groups are included:`,
@@ -124,5 +123,10 @@ export function renderCatalogStatus(
     paragraph(age, 'muted'),
   );
 
-  container.replaceChildren(headline, details);
+  details.replaceChildren(
+    paragraph(
+      'Every dot is one object, where it is right now. This is not the full public catalog.',
+    ),
+    about,
+  );
 }

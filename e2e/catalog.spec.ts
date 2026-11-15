@@ -1,38 +1,13 @@
 import { gzipSync } from 'node:zlib';
 import { expect, test } from '@playwright/test';
-import { mergeCatalog } from '../pipeline/merge';
-import { parseOmmCsv } from '../pipeline/omm';
-import { encodeCatalog } from '../src/catalog/format';
-import { verificationSetAsOmmCsv } from '../tests/pipeline/fixtureCsv';
-
-/**
- * A catalog built by the real pipeline code from the published SGP4
- * verification element sets (31 objects after the pipeline's checks), as the
- * gzip-compressed file the deployed site serves.
- */
-function fixtureCatalogGzip(fetchedAt: string): Buffer {
-  const parsed = parseOmmCsv(verificationSetAsOmmCsv(), Date.parse(fetchedAt));
-  const catalog = mergeCatalog(
-    null,
-    new Map([['fixture', { elementSets: parsed.elementSets, fetchedAt }]]),
-    [
-      {
-        id: 'fixture',
-        label: 'Verification element sets',
-        provider: 'Test fixture',
-        url: 'https://example.invalid/',
-        minimumObjects: 1,
-      },
-    ],
-    fetchedAt,
-  );
-  return gzipSync(encodeCatalog(catalog));
-}
+import { fixtureCatalogGzip, openOverview, serveCatalog } from './fixtures';
 
 test('says plainly when the site has no orbital data', async ({ page }) => {
   // The build under test contains no data directory, as on a developer's machine.
   await page.goto('./');
   await expect(page.locator('html')).toHaveAttribute('data-catalog', 'missing');
+  await expect(page.locator('#catalog-headline')).toHaveText('No orbital data');
+  await openOverview(page);
   await expect(page.locator('#catalog-status')).toContainText('has no orbital data yet');
 });
 
@@ -41,18 +16,13 @@ test('loads a compressed catalog and reports what it contains', async ({ page })
   page.on('pageerror', (error) => errors.push(error.message));
 
   const threeHoursAgo = new Date(Date.now() - 3 * 3_600_000 - 60_000).toISOString();
-  await page.route('**/data/catalog.json.gz', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/gzip',
-      body: fixtureCatalogGzip(threeHoursAgo),
-    }),
-  );
+  await serveCatalog(page, fixtureCatalogGzip({ fetchedAt: threeHoursAgo }));
   await page.goto('./');
 
   await expect(page.locator('html')).toHaveAttribute('data-catalog', 'loaded');
+  await expect(page.locator('#catalog-headline')).toHaveText('Showing 31 objects');
+  await openOverview(page);
   const status = page.locator('#catalog-status');
-  await expect(status).toContainText('Showing 31 objects');
   await expect(status).toContainText('not the full public catalog');
 
   await status.getByText('About this data').click();
@@ -68,15 +38,26 @@ test('loads a compressed catalog and reports what it contains', async ({ page })
 });
 
 test('reports a damaged catalog instead of showing wrong numbers', async ({ page }) => {
-  await page.route('**/data/catalog.json.gz', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/gzip',
-      body: gzipSync('{"format":"nonsense"}'),
-    }),
-  );
+  await serveCatalog(page, gzipSync('{"format":"nonsense"}'));
   await page.goto('./');
   await expect(page.locator('html')).toHaveAttribute('data-catalog', 'error');
+  await expect(page.locator('#catalog-headline')).toHaveText('Orbital data unavailable');
+  await openOverview(page);
   await expect(page.locator('#catalog-status')).toContainText('could not be loaded');
   await expect(page.locator('html')).toHaveAttribute('data-renderer', 'ready');
+});
+
+test('folds and unfolds the overview card', async ({ page }) => {
+  await page.goto('./');
+  const toggle = page.locator('#overview-toggle');
+  const body = page.locator('#overview-body');
+  await openOverview(page);
+  await expect(body).toBeVisible();
+  await toggle.click();
+  await expect(body).toBeHidden();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(toggle).toHaveAccessibleName('Show details');
+  // The title and the one-line summary stay in view.
+  await expect(page.locator('#overview-title')).toBeVisible();
+  await expect(page.locator('#catalog-headline')).toBeVisible();
 });

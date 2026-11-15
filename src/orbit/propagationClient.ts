@@ -1,4 +1,5 @@
 import type { CatalogRecord } from '../catalog/format';
+import type { OrbitSummary } from './propagate';
 import type { WorkerRequest, WorkerResponse } from './propagation.worker';
 
 /** Every object's state at one instant, in scene coordinates. */
@@ -14,8 +15,16 @@ export interface Keyframe {
 }
 
 export interface PropagationClient {
+  /** Period and highest and lowest altitude of every orbit, in catalog order. */
+  readonly orbits: OrbitSummary;
   /** Ask the background thread for all states at `unixMs`. */
   requestKeyframe(unixMs: number): Promise<Keyframe>;
+  /**
+   * Ask the background thread for the path of one object over a single
+   * revolution centred on `unixMs`: x, y, z per point in scene coordinates.
+   * The result is empty if the object cannot be propagated that far.
+   */
+  requestOrbitPath(index: number, unixMs: number, segments: number): Promise<Float32Array>;
   /** Stop the background thread. Pending requests never resolve. */
   dispose(): void;
 }
@@ -30,7 +39,8 @@ export function startPropagation(records: readonly CatalogRecord[]): Promise<Pro
   };
 
   return new Promise((resolve, reject) => {
-    const pending = new Map<number, (keyframe: Keyframe) => void>();
+    const pendingKeyframes = new Map<number, (keyframe: Keyframe) => void>();
+    const pendingOrbits = new Map<number, (points: Float32Array) => void>();
     let nextId = 1;
 
     worker.onerror = (event) => {
@@ -39,24 +49,39 @@ export function startPropagation(records: readonly CatalogRecord[]): Promise<Pro
     worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
       const response = event.data;
       if (response.type === 'ready') {
+        const { periodMinutes, apogeeKm, perigeeKm } = response;
         resolve({
+          orbits: { periodMinutes, apogeeKm, perigeeKm },
           requestKeyframe: (unixMs) =>
             new Promise((resolveKeyframe) => {
               const id = nextId;
               nextId += 1;
-              pending.set(id, resolveKeyframe);
+              pendingKeyframes.set(id, resolveKeyframe);
               send({ type: 'propagate', id, unixMs });
+            }),
+          requestOrbitPath: (index, unixMs, segments) =>
+            new Promise((resolveOrbit) => {
+              const id = nextId;
+              nextId += 1;
+              pendingOrbits.set(id, resolveOrbit);
+              send({ type: 'orbit', id, index, unixMs, segments });
             }),
           dispose: () => {
             worker.terminate();
-            pending.clear();
+            pendingKeyframes.clear();
+            pendingOrbits.clear();
           },
         });
         return;
       }
+      if (response.type === 'orbit') {
+        pendingOrbits.get(response.id)?.(response.points);
+        pendingOrbits.delete(response.id);
+        return;
+      }
       const { id, unixMs, positions, velocities, failures } = response;
-      pending.get(id)?.({ unixMs, positions, velocities, failures });
-      pending.delete(id);
+      pendingKeyframes.get(id)?.({ unixMs, positions, velocities, failures });
+      pendingKeyframes.delete(id);
     };
     send({ type: 'init', records });
   });

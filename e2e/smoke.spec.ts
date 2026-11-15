@@ -100,8 +100,9 @@ test('switches modes and loads the What if? code only on demand', async ({ page 
 
   const nowTab = page.getByRole('tab', { name: 'Now' });
   const whatIfTab = page.getByRole('tab', { name: 'What if?' });
-  const nowPanel = page.locator('#panel-now');
-  const whatIfPanel = page.locator('#panel-whatif');
+  // Each mode's layer covers the whole view; its card is what the viewer sees.
+  const nowPanel = page.locator('#panel-now #overview');
+  const whatIfPanel = page.locator('#panel-whatif #whatif-card');
 
   await expect(nowTab).toHaveAttribute('aria-selected', 'true');
   await expect(nowPanel).toBeVisible();

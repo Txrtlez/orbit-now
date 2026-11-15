@@ -47,34 +47,52 @@
     <main>
       <p id="render-status" class="render-status" role="status"></p>
       <p id="stats" class="stats" hidden></p>
+      <div id="hover-label" class="hover-label" hidden></div>
 
-      <section id="panel-now" class="panel" role="tabpanel" aria-labelledby="tab-now" tabindex="0">
-        <h2>In orbit now</h2>
-        <div id="catalog-status" class="catalog-status">
-          <p>Loading orbital data…</p>
-        </div>
-        <details class="details">
-          <summary>What am I looking at?</summary>
-          <p class="muted">
-            Each dot is one tracked object at its current position, worked out in your browser from
-            its published orbital elements with the standard SGP4 model. The day and night sides
-            follow the Sun's actual position; the twilight band between them is a simplified blend.
-            Earth imagery: NASA Blue Marble and Black Marble.
-          </p>
-          <p class="muted">
-            Work in progress: selecting, searching and filtering objects come next.
-          </p>
-        </details>
-      </section>
+      <div id="panel-now" class="mode-layer" role="tabpanel" aria-labelledby="tab-now">
+        <section id="overview" class="card overview" aria-labelledby="overview-title">
+          <header class="card-header">
+            <div class="card-titles">
+              <h2 id="overview-title">In orbit now</h2>
+              <p id="catalog-headline" class="headline">Loading orbital data…</p>
+            </div>
+            <button
+              id="overview-toggle"
+              type="button"
+              class="icon-button chevron"
+              aria-expanded="true"
+              aria-controls="overview-body"
+              aria-label="Hide details"
+            ></button>
+          </header>
+          <div id="overview-body" class="card-body">
+            <div id="catalog-status" class="catalog-status"></div>
+            <details class="details">
+              <summary>What am I looking at?</summary>
+              <p class="muted">
+                Each dot is one tracked object at its current position, worked out in your browser
+                from its published orbital elements with the standard SGP4 model. Click or tap a dot
+                to see what it is and the path it follows.
+              </p>
+              <p class="muted">
+                The day and night sides follow the Sun's actual position; the twilight band between
+                them is a simplified blend. Earth imagery: NASA Blue Marble and Black Marble.
+              </p>
+            </details>
+          </div>
+        </section>
 
-      <section
-        id="panel-whatif"
-        class="panel"
-        role="tabpanel"
-        aria-labelledby="tab-whatif"
-        tabindex="0"
-        hidden
-      ></section>
+        <section
+          id="object-panel"
+          class="card object"
+          aria-labelledby="object-title"
+          hidden
+        ></section>
+      </div>
+
+      <div id="panel-whatif" class="mode-layer" role="tabpanel" aria-labelledby="tab-whatif" hidden>
+        <section id="whatif-card" class="card overview" tabindex="0"></section>
+      </div>
     </main>
 
     <footer class="footer">
