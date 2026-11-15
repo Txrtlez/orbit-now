@@ -2,6 +2,7 @@ import { gzipSync } from 'node:zlib';
 import type { Page } from '@playwright/test';
 import { mergeCatalog } from '../pipeline/merge';
 import { parseOmmCsv } from '../pipeline/omm';
+import { BRIGHT_GROUP_ID } from '../src/catalog/brightGroup';
 import { encodeCatalog } from '../src/catalog/format';
 import { verificationSetAsOmmCsv } from '../tests/pipeline/fixtureCsv';
 
@@ -30,7 +31,17 @@ export interface FixtureOptions {
    * objects the element sets belong to.
    */
   readonly withInventedMetadata?: boolean;
+  /**
+   * If true, the objects in low orbits are also listed under a second
+   * source with the identifier of CelesTrak's group of bright objects, so
+   * that the app predicts passes for them. A TEST FIXTURE: these objects
+   * are not on the real list.
+   */
+  readonly withBrightGroup?: boolean;
 }
+
+/** Revolutions per day above which a fixture object counts as being in a low orbit. */
+const LOW_ORBIT_MEAN_MOTION = 11;
 
 /**
  * A catalog built by the real pipeline code from the published SGP4
@@ -48,9 +59,25 @@ export function fixtureCatalogGzip(options: FixtureOptions): Buffer {
           epochDay: Math.floor(epochAtMs / 86_400_000),
           epochMicros: (epochAtMs % 86_400_000) * 1000,
         }));
+  const bright = options.withBrightGroup === true;
   const catalog = mergeCatalog(
     null,
-    new Map([['fixture', { elementSets, fetchedAt: options.fetchedAt }]]),
+    new Map([
+      ['fixture', { elementSets, fetchedAt: options.fetchedAt }],
+      ...(bright
+        ? ([
+            [
+              BRIGHT_GROUP_ID,
+              {
+                elementSets: elementSets.filter(
+                  (elementSet) => elementSet.meanMotion > LOW_ORBIT_MEAN_MOTION,
+                ),
+                fetchedAt: options.fetchedAt,
+              },
+            ],
+          ] as const)
+        : []),
+    ]),
     [
       {
         id: 'fixture',
@@ -59,6 +86,17 @@ export function fixtureCatalogGzip(options: FixtureOptions): Buffer {
         url: 'https://example.invalid/',
         minimumObjects: 1,
       },
+      ...(bright
+        ? [
+            {
+              id: BRIGHT_GROUP_ID,
+              label: 'Pretend bright objects',
+              provider: 'Test fixture',
+              url: 'https://example.invalid/bright',
+              minimumObjects: 1,
+            },
+          ]
+        : []),
     ],
     options.fetchedAt,
     options.withInventedMetadata === true

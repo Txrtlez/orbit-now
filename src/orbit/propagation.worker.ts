@@ -6,15 +6,21 @@
  *   { type: 'init', records }                    prepare SGP4 for a catalog
  *   { type: 'propagate', id, unixMs }            compute all states at one instant
  *   { type: 'orbit', id, index, unixMs, segments } compute one object's path over a revolution
+ *   { type: 'passes', id, indices, latitudeRad, longitudeRad, fromMs, toMs }
+ *                                                find several objects' passes over a place
  * Messages out:
  *   { type: 'ready', count, periodMinutes, apogeeKm, perigeeKm }
  *   { type: 'keyframe', id, unixMs, positions, velocities, failures }
  *   { type: 'orbit', id, points }
+ *   { type: 'passes', id, passes }
  *
  * The result arrays are transferred, not copied: ownership of their memory
  * moves to the main thread at no cost.
  */
+import { sgp4 } from 'satellite.js';
 import type { CatalogRecord } from '../catalog/format';
+import { createObserver } from '../geo/topocentric';
+import { predictPasses, type Pass } from '../passes/predict';
 import {
   buildPropagationSet,
   propagateAll,
@@ -32,6 +38,17 @@ export type WorkerRequest =
       readonly index: number;
       readonly unixMs: number;
       readonly segments: number;
+    }
+  | {
+      readonly type: 'passes';
+      readonly id: number;
+      /** Positions in the catalog of the objects wanted. */
+      readonly indices: readonly number[];
+      /** The observer's geodetic latitude and longitude, radians. */
+      readonly latitudeRad: number;
+      readonly longitudeRad: number;
+      readonly fromMs: number;
+      readonly toMs: number;
     };
 
 export type WorkerResponse =
@@ -43,6 +60,12 @@ export type WorkerResponse =
       readonly perigeeKm: Float32Array;
     }
   | { readonly type: 'orbit'; readonly id: number; readonly points: Float32Array }
+  | {
+      readonly type: 'passes';
+      readonly id: number;
+      /** One list of passes per object asked for, in the same order. */
+      readonly passes: readonly (readonly Pass[])[];
+    }
   | {
       readonly type: 'keyframe';
       readonly id: number;
@@ -78,6 +101,26 @@ scope.onmessage = (event) => {
   if (request.type === 'orbit') {
     const points = sampleOrbitPath(set, request.index, request.unixMs, request.segments);
     scope.postMessage({ type: 'orbit', id: request.id, points }, [points.buffer]);
+    return;
+  }
+  if (request.type === 'passes') {
+    const propagationSet = set;
+    // SIMPLIFICATION: the observer is placed on the ellipsoid, at height
+    // zero. A kilometre of height changes a pass time by well under a second.
+    const observer = createObserver(request.latitudeRad, request.longitudeRad, 0);
+    const passes = request.indices.map((index) => {
+      const satrec = propagationSet.satrecs[index];
+      const epochMs = propagationSet.epochMs[index] ?? 0;
+      return satrec === undefined
+        ? []
+        : predictPasses(
+            (unixMs) => sgp4(satrec, (unixMs - epochMs) / 60_000)?.position ?? null,
+            observer,
+            request.fromMs,
+            request.toMs,
+          );
+    });
+    scope.postMessage({ type: 'passes', id: request.id, passes }, []);
     return;
   }
   const positions = new Float32Array(set.satrecs.length * 3);

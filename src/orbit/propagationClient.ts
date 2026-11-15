@@ -1,4 +1,5 @@
 import type { CatalogRecord } from '../catalog/format';
+import type { Pass } from '../passes/predict';
 import type { OrbitSummary } from './propagate';
 import type { WorkerRequest, WorkerResponse } from './propagation.worker';
 
@@ -25,6 +26,20 @@ export interface PropagationClient {
    * The result is empty if the object cannot be propagated that far.
    */
   requestOrbitPath(index: number, unixMs: number, segments: number): Promise<Float32Array>;
+  /**
+   * Ask the background thread for the passes of some objects over a place
+   * on the ground (geodetic latitude and longitude in radians) that end
+   * between `fromMs` and `toMs`. The answer has one list per object, in the
+   * order asked. Ask for a few objects at a time: the thread does nothing
+   * else, including moving the dots, until it has answered.
+   */
+  requestPasses(
+    indices: readonly number[],
+    latitudeRad: number,
+    longitudeRad: number,
+    fromMs: number,
+    toMs: number,
+  ): Promise<readonly (readonly Pass[])[]>;
   /** Stop the background thread. Pending requests never resolve. */
   dispose(): void;
 }
@@ -41,6 +56,7 @@ export function startPropagation(records: readonly CatalogRecord[]): Promise<Pro
   return new Promise((resolve, reject) => {
     const pendingKeyframes = new Map<number, (keyframe: Keyframe) => void>();
     const pendingOrbits = new Map<number, (points: Float32Array) => void>();
+    const pendingPasses = new Map<number, (passes: readonly (readonly Pass[])[]) => void>();
     let nextId = 1;
 
     worker.onerror = (event) => {
@@ -66,10 +82,18 @@ export function startPropagation(records: readonly CatalogRecord[]): Promise<Pro
               pendingOrbits.set(id, resolveOrbit);
               send({ type: 'orbit', id, index, unixMs, segments });
             }),
+          requestPasses: (indices, latitudeRad, longitudeRad, fromMs, toMs) =>
+            new Promise((resolvePasses) => {
+              const id = nextId;
+              nextId += 1;
+              pendingPasses.set(id, resolvePasses);
+              send({ type: 'passes', id, indices, latitudeRad, longitudeRad, fromMs, toMs });
+            }),
           dispose: () => {
             worker.terminate();
             pendingKeyframes.clear();
             pendingOrbits.clear();
+            pendingPasses.clear();
           },
         });
         return;
@@ -77,6 +101,11 @@ export function startPropagation(records: readonly CatalogRecord[]): Promise<Pro
       if (response.type === 'orbit') {
         pendingOrbits.get(response.id)?.(response.points);
         pendingOrbits.delete(response.id);
+        return;
+      }
+      if (response.type === 'passes') {
+        pendingPasses.get(response.id)?.(response.passes);
+        pendingPasses.delete(response.id);
         return;
       }
       const { id, unixMs, positions, velocities, failures } = response;

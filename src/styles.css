@@ -879,3 +879,181 @@ body {
     padding: 0 14px;
   }
 }
+
+/* --- Passes over you ----------------------------------------------------- */
+
+.passes > [hidden] {
+  display: none;
+}
+
+.place-form {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.place-field input {
+  width: 100%;
+  /* 44px is the minimum comfortable touch target. */
+  height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  /* At least 16px, or iOS zooms the page when the field is focused. */
+  font: inherit;
+  color: var(--text);
+  background: rgb(5 7 13 / 55%);
+  appearance: none;
+}
+
+.place-field input::placeholder {
+  color: var(--text-muted);
+}
+
+/*
+ * The suggestions push the rest of the panel down instead of floating over
+ * it: the card scrolls, and a floating list would be cut off at its edge.
+ */
+.search-results.place-results {
+  position: static;
+  max-height: 264px;
+  margin-top: 6px;
+}
+
+.passes-notice:empty {
+  display: none;
+}
+
+.passes-where {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin-bottom: 4px;
+}
+
+.passes-where .passes-place {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.passes-controls {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 6px;
+}
+
+.passes-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+
+.passes-option input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.pass-day-title {
+  margin: 12px 0 4px;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.pass-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pass {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgb(5 7 13 / 35%);
+}
+
+/* A pass that cannot be seen is listed more quietly. */
+.pass[data-visible='false'] {
+  border-style: dashed;
+}
+
+.pass-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 12px;
+}
+
+.pass-name {
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.pass-status {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.pass[data-visible='true'] .pass-status {
+  color: #7dffb8;
+}
+
+.pass-moments {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 8px 0 0;
+}
+
+.pass-moments dt {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.pass-moments dd {
+  margin: 0;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.pass-moments .pass-time {
+  font-weight: 550;
+}
+
+.card .pass-note {
+  margin: 6px 0 0;
+}
+
+.pass-show {
+  min-height: 36px;
+  margin-top: 8px;
+  padding: 0 12px;
+  font-size: 0.875rem;
+}
+
+.passes-change {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 0.875rem;
+}
+
+.passes > .text-button {
+  margin-top: 10px;
+}
+
+.passes > .details {
+  margin-top: 6px;
+}

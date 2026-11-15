@@ -7,13 +7,20 @@ import { initTimeBar } from './app/timeBar';
 import { createClock } from './app/clock';
 import { createExplorer, type Explorer } from './app/explorer';
 import { createFilterPanel } from './app/filterPanel';
+import { createPassesPanel } from './app/passesPanel';
 import { formatCount } from './app/format';
 import { buildSearchIndex, searchObjects } from './app/search';
 import { initSearchBox } from './app/searchBox';
 import { CATALOG_URL, loadCatalog } from './catalog/load';
 import { buildObjectIndex, categoryAt, type ObjectIndex } from './catalog/objectIndex';
+import { geodeticToEcef } from './geo/geodetic';
+import { ecefKmToScene } from './geo/sceneFrame';
 import { startPropagation } from './orbit/propagationClient';
+import { gmstRadians } from './orbit/time';
+import { startOfPass } from './passes/passList';
+import { choosePassTargets } from './passes/targets';
 import { createGlobe, type Globe } from './render/globe';
+import { createObserverMarker } from './render/observerMarker';
 import { createOrbitPathLayer } from './render/orbitPathLayer';
 import { coloursForObjects } from './render/palette';
 import { createSatelliteLayer } from './render/satelliteLayer';
@@ -246,6 +253,42 @@ function startSearch(objects: ObjectIndex, select: (index: number) => void): voi
   input.disabled = false;
 }
 
+/** When a pass is shown in the 3D view, the clock is set this long before the satellite appears. */
+const SHOW_PASS_LEAD_MS = 20_000;
+/** ...and slowed to this speed if it was running faster, so the pass does not flash by. */
+const SHOW_PASS_MAX_SPEED = 10;
+
+/** The browser's storage for this site, or null where the browser refuses it. */
+function browserStorage(): Storage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The direction from the Earth's centre to a place on the ground, in the
+ * scene's frame (which does not turn with the Earth), at an instant.
+ */
+function inertialDirectionOf(
+  latitudeDeg: number,
+  longitudeDeg: number,
+  unixMs: number,
+): { x: number; y: number; z: number } {
+  const ecef = geodeticToEcef((latitudeDeg * Math.PI) / 180, (longitudeDeg * Math.PI) / 180, 0);
+  const fixed = [0, 0, 0];
+  ecefKmToScene(ecef.x, ecef.y, ecef.z, fixed);
+  const [x = 0, y = 0, z = 0] = fixed;
+  // Turn about the scene's north axis by the sidereal angle, as the globe turns the Earth.
+  const angle = gmstRadians(unixMs);
+  return {
+    x: x * Math.cos(angle) + z * Math.sin(angle),
+    y,
+    z: -x * Math.sin(angle) + z * Math.cos(angle),
+  };
+}
+
 type CatalogState = 'loading' | 'loaded' | 'missing' | 'error';
 
 /** Record the catalog's state on the <html> element, for the end-to-end tests. */
@@ -345,6 +388,50 @@ async function startCatalog(globe: Globe | null): Promise<void> {
       },
     });
     requireElement('filters', HTMLElement).hidden = false;
+
+    const observerMarker = createObserverMarker();
+    globe.addLayer(observerMarker);
+    createPassesPanel({
+      container: requireElement('passes-panel', HTMLElement),
+      targets: choosePassTargets(catalog),
+      requestPasses: (indices, latitudeRad, longitudeRad, fromMs, toMs) =>
+        client.requestPasses(indices, latitudeRad, longitudeRad, fromMs, toMs),
+      storage: browserStorage(),
+      geolocation: 'geolocation' in navigator ? navigator.geolocation : null,
+      loadPlaces: async () => {
+        const response = await fetch('./places.txt');
+        if (!response.ok) {
+          throw new Error(`The list of places answered ${String(response.status)}`);
+        }
+        return response.text();
+      },
+      wallNow: () => Date.now(),
+      onLocationChange: (place) => {
+        observerMarker.setPlace(place);
+        // For the end-to-end tests.
+        if (place === null) {
+          delete document.documentElement.dataset.observer;
+        } else {
+          document.documentElement.dataset.observer = `${String(place.latitudeDeg)},${String(place.longitudeDeg)}`;
+        }
+      },
+      onShowPass: (target, pass, place) => {
+        // Start a little before the satellite appears, at a speed at which
+        // a pass of a few minutes can be followed.
+        clock.setTime(startOfPass(pass) - SHOW_PASS_LEAD_MS);
+        if (clock.speed() > SHOW_PASS_MAX_SPEED) {
+          clock.setSpeed(SHOW_PASS_MAX_SPEED);
+        }
+        clock.setPlaying(true);
+        created.select(target.index, false);
+        globe.flyTo(
+          inertialDirectionOf(place.latitudeDeg, place.longitudeDeg, clock.now()),
+          1.1,
+          !reducedMotion.matches,
+        );
+      },
+    });
+    requireElement('passes', HTMLElement).hidden = false;
     // A small hook for the end-to-end tests, which need to know where an
     // object is on screen in order to click it. It exposes nothing private.
     window.orbitNowDebug = {

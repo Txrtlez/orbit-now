@@ -1,3 +1,5 @@
+import { BRIGHT_GROUP_ID } from '../src/catalog/brightGroup';
+
 /**
  * The data sets the pipeline downloads.
  *
@@ -5,13 +7,16 @@
  * Space Force's general-perturbations (GP) orbital data. CelesTrak serves
  * that data in named groups. There is no group containing every catalogued
  * object, so this project's catalog is NOT the full public catalog: it is
- * the active satellites plus the debris of three breakup events for which
- * CelesTrak maintains groups. The app says so wherever it presents totals.
+ * the active satellites, the debris of three breakup events for which
+ * CelesTrak maintains groups, and CelesTrak's list of the brightest
+ * objects (which adds some spent rocket stages and dead satellites). The
+ * app says so wherever it presents totals.
  *
  * Group names and the query form were read from
  * https://celestrak.org/NORAD/elements/ and
  * https://celestrak.org/NORAD/documentation/gp-data-formats.php on
- * 2026-11-14. CSV is requested because CelesTrak's usage policy recommends it.
+ * 2026-11-14 (the "visual" group on 2026-11-15). CSV is requested because
+ * CelesTrak's usage policy recommends it.
  */
 
 export interface SourceDefinition {
@@ -139,8 +144,23 @@ export const SOURCES: readonly SourceDefinition[] = [
     // truncated download.
     minimumObjects: 5000,
   },
+  {
+    // CelesTrak's "100 (or so) Brightest": the objects most easily seen with
+    // the naked eye. Many are spent rocket stages and satellites no longer
+    // working, which the "active" group leaves out. Added 2026-11-15 and
+    // placed last among the orbital elements, against the smallest-first
+    // rule, so that if this request is ever refused the groups the site
+    // depends on have already been refreshed.
+    id: BRIGHT_GROUP_ID,
+    label: 'Brightest objects',
+    provider: 'CelesTrak',
+    url: celestrakGroup(BRIGHT_GROUP_ID),
+    // The page calls it "100 (or so)"; half of that is a loose floor.
+    minimumObjects: 50,
+  },
   satcatSource('iridium-33-debris', 'Catalog records: Iridium 33 debris', 1),
   satcatSource('cosmos-2251-debris', 'Catalog records: Cosmos 2251 debris', 1),
   satcatSource('fengyun-1c-debris', 'Catalog records: Fengyun-1C debris', 1),
   satcatSource('active', 'Catalog records: active satellites', 5000),
+  satcatSource(BRIGHT_GROUP_ID, 'Catalog records: brightest objects', 50),
 ];

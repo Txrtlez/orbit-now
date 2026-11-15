@@ -26,9 +26,20 @@ export interface SearchBoxOptions {
   readonly suggest: (query: string) => readonly Suggestion[];
   /** Called when the viewer chooses a suggestion, with its position in the list last returned. */
   readonly onChoose: (position: number) => void;
+  /** What to announce when nothing matches. Defaults to "No matching objects." */
+  readonly noMatchText?: string;
 }
 
-export function initSearchBox(options: SearchBoxOptions): void {
+export interface SearchBox {
+  /**
+   * Work out the suggestions again for the text now in the field. For when
+   * what there is to search has changed (it has just finished loading, say)
+   * without the viewer typing anything.
+   */
+  refresh(): void;
+}
+
+export function initSearchBox(options: SearchBoxOptions): SearchBox {
   const { input, list, status } = options;
   let suggestions: readonly Suggestion[] = [];
   // Position of the highlighted suggestion, or -1 if none is highlighted.
@@ -101,7 +112,7 @@ export function initSearchBox(options: SearchBoxOptions): void {
     }
     if (suggestions.length === 0) {
       close();
-      status.textContent = 'No matching objects.';
+      status.textContent = options.noMatchText ?? 'No matching objects.';
       return;
     }
     list.hidden = false;
@@ -163,4 +174,13 @@ export function initSearchBox(options: SearchBoxOptions): void {
   list.addEventListener('pointerdown', (event) => {
     event.preventDefault();
   });
+
+  return {
+    refresh: () => {
+      // Only while the viewer is in the field: suggestions must not pop up under someone who has moved on.
+      if (document.activeElement === input) {
+        refresh();
+      }
+    },
+  };
 }
