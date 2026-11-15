@@ -72,8 +72,9 @@ export interface PassOptions {
   /**
    * A pass is counted from when the satellite climbs above this elevation
    * until it sinks below it, and only if it gets this high. Ten degrees is
-   * the convention of NASA's Spot the Station and of Heavens-Above: lower
-   * than that, buildings, trees and haze usually hide the satellite.
+   * what Heavens-Above's tables use (every row of the reference tables in
+   * tests/fixtures/passes starts and ends at 10 degrees): lower than that,
+   * buildings, trees and haze usually hide the satellite.
    */
   readonly minElevationDeg: number;
   /**
@@ -113,11 +114,14 @@ const LEAD_IN_MS = 20 * 60_000;
  * SIMPLIFICATION: the Earth's shadow is treated as a cylinder of the
  * Earth's equatorial radius pointing directly away from the Sun. The real
  * shadow has a dark core that narrows slightly with distance and a
- * partly-lit fringe around it; at the height of the space station the
- * fringe is about 60 km across, which a satellite crosses in under ten
- * seconds. The cylinder's edge runs down the middle of that fringe, so
- * shadow times from this test are good to a few seconds. The flattening
- * of the Earth and the bending of sunlight by the atmosphere are ignored.
+ * partly-lit fringe around it. The fringe is as wide as the Sun's disc
+ * (0.53 degrees, about 0.0093 radians) looks from the distance behind the
+ * Earth's edge at which the satellite crosses it: for the space station
+ * that distance is sqrt(6798^2 - 6378^2), about 2350 km, so the fringe is
+ * about 22 km across, which the station crosses in a few seconds. The
+ * cylinder's edge runs down the middle of that fringe, so shadow times
+ * from this test are good to a few seconds. The flattening of the Earth
+ * and the bending of sunlight by the atmosphere are ignored.
  *
  * @param position     the satellite, inertial frame, kilometres
  * @param sunDirection unit vector from the Earth's centre towards the Sun, same frame

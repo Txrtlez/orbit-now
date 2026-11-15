@@ -5,13 +5,13 @@ and the date it was made. A check that has not been run is listed as "not yet ru
 
 ## Launch gates
 
-These are the four validations that must pass before launch. The last three cannot be run yet,
-because the code they test belongs to later phases.
+These are the four validations that must pass before launch. The last two cannot be run yet,
+because the code they test belongs to a later phase.
 
 | Gate                                                                                      | Phase | Status                                         |
 | ----------------------------------------------------------------------------------------- | ----- | ---------------------------------------------- |
 | SGP4 matches the test vectors in Vallado et al. (2006), "Revisiting Spacetrack Report #3" | 2     | **Pass, with one documented exception** (V2.1) |
-| ISS passes match NASA Spot the Station or Heavens-Above for at least three locations      | 4     | Not yet run                                    |
+| ISS passes match NASA Spot the Station or Heavens-Above for at least three locations      | 4     | **Pass**, Heavens-Above, four locations (V4.2) |
 | Breakup model reproduces the published size-distribution curves and conserves momentum    | 6     | Not yet run                                    |
 | J2 propagation matches the analytic secular nodal precession rate                         | 6     | Not yet run                                    |
 
@@ -601,3 +601,208 @@ size, local server).
 **Not done:** any real phone or tablet; Firefox, Safari and Edge; a screen reader. The combobox
 and the filter buttons follow the WAI-ARIA patterns and are operated by keyboard in the tests, but
 no assistive technology was actually used.
+
+## Phase 4
+
+### V4.1 Running the clock fast: wider keyframe spacing
+
+- **Date:** 2026-11-15
+- **What is checked:** that the objects are still drawn where SGP4 puts them when the clock runs
+  at up to 600 times normal speed. At that speed SGP4 results 5 seconds apart would be needed 120
+  times a second, so the spacing between them grows with the speed: 500 ms of real time, kept
+  between 5 s and 300 s of simulated time. The comparison is the one in V3.3, repeated at the
+  widest spacing, and extended to the speed shown in the object card.
+- **Reproduce:** `npm run test -- tests/validation/propagation`
+
+| Keyframe spacing              | Worst position error | Worst error in displayed speed |
+| ----------------------------- | -------------------- | ------------------------------ |
+| 5 s (normal speed, and 10×)   | 10.2 m               | 0.00015%                       |
+| 300 s (600×), orbits e < 0.25 | 596 m                | 0.20%                          |
+| 300 s (600×), orbits e ≥ 0.25 | 714 m                | 0.56%                          |
+
+The orbits are the 28 fixture orbits of V3.3 without the extreme case 23333. At 600× a satellite
+in low orbit crosses the whole view in a few seconds, and 0.7 km is far below the width of a dot.
+
+**A choice the measurements decided.** Three ways of getting the displayed speed between two
+keyframes were compared at 300 s spacing: the slope of the position curve itself (worst error
+0.32% already at 5 s, because of the SGP4 velocity mismatch described in V3.3), a straight blend of
+the two velocity vectors (1.65% too low, since a chord is shorter than the arc), and the direction
+of the curve with the magnitude blended between the two keyframe speeds (0.56%). The last is used.
+
+**Also measured:** with the speed set to 600×, the clock in a headless browser advanced by 600.0
+simulated seconds per real second over four seconds.
+
+**Not checked:** how the display behaves at 600× on a phone. The spacing rule means the background
+thread does the same work per real second at every speed, but no device was used.
+
+### V4.2 ISS passes against Heavens-Above (launch gate 2)
+
+- **Date:** 2026-11-15
+- **Reference:** Heavens-Above (heavens-above.com), page `PassSummary.aspx` for satellite 25544,
+  read on 2026-11-15 at about 16:06 UTC in a desktop browser, with the time zone set to UTC and the
+  observer's height to 0. For each place two tables were copied: all passes, and visible passes
+  only, for 15 to 25 November 2026. The rows are in
+  `tests/fixtures/passes/heavens-above-iss-2026-11-15.json` exactly as printed: times to the
+  second, altitudes to the degree, directions as one of sixteen compass points.
+- **What is compared:** this project's predictor (`src/passes/predict.ts`) given the ISS element
+  set from this project's own catalog of that morning (epoch 2026-11-14 22:45:17 UTC, mean motion
+  15.49382049 rev/day; `tests/fixtures/passes/iss-elements-2026-11-15.json`). Heavens-Above's page
+  gave its own elements as "Epoch: 15 November", so the two calculations did not start from the
+  same element set.
+- **Places:** Atlanta (33.749° N, 84.388° W), London (51.5074° N, 0.1278° W), Sydney (33.8688° S,
+  151.2093° E) and Singapore (1.3521° N, 103.8198° E): two mid-latitudes in opposite hemispheres,
+  one near the northern edge of the station's reach, and one on the equator.
+- **Reproduce:** `npm run test -- tests/validation/iss-passes`
+
+**Every pass was found, and no extra ones.** 153 passes in the reference, 153 predicted, matched
+one for one.
+
+| Place     | Passes | Worst time difference, first 3 days | Worst time difference, all 10 days | Worst altitude difference | Compass points differing |
+| --------- | ------ | ----------------------------------- | ---------------------------------- | ------------------------- | ------------------------ |
+| Atlanta   | 39     | 1.4 s                               | 4.9 s                              | 0.51°                     | 0 of 117                 |
+| London    | 48     | 1.6 s                               | 4.9 s                              | 0.49°                     | 2 of 134                 |
+| Sydney    | 42     | 1.5 s                               | 5.0 s                              | 0.51°                     | 0 of 123                 |
+| Singapore | 24     | 1.7 s                               | 4.5 s                              | 0.50°                     | 1 of 71                  |
+
+Times are those of the start, highest point and end of each pass, the start and end being where
+the station crosses 10° altitude. A difference of up to 0.5 s and 0.5° is the reference's own
+rounding. The time difference grows steadily from under 2 s on the first days to about 5 s on the
+tenth, which is what two slightly different element sets would do; it was not investigated further.
+The three compass points that differ are all within 1.6° of the boundary between two points.
+Fourteen points above 85° altitude were left out of the compass comparison, because nearly overhead
+a bearing swings through half the compass in seconds and means little. Limits asserted by the test:
+3 s in the first three days, 7 s overall, 0.75°, and 2° from a compass boundary.
+
+**Which passes can be seen.** The reference's table of visible passes has 33 rows (Atlanta 1,
+London 20, Sydney 12, Singapore 0). All 33 are passes this project also calls visible, and the
+start, highest point and end of the visible part agree within 4.6 s and 0.55°. That includes the
+passes that begin or end in mid-sky, where the station leaves or enters the Earth's shadow, so the
+shadow model (a plain cylinder, see below) is good to a few seconds for this orbit.
+
+This project calls one further pass visible: Atlanta, 16 November, 22:57:36 to 23:01:37 UTC, a low
+pass (15°) at dusk during which the Sun sinks from 5.5° to 6.3° below the horizon. It is in the
+reference's table of all passes, labelled "visible", but not in its table of visible passes.
+
+**How darkness is judged, and a change made because of this comparison.** The first version
+required the Sun to be at least 6° below the horizon at every instant of the visible part. Four
+passes fall in twilight with the Sun crossing that line, and on them the two sources disagreed:
+
+| Pass (UTC)           | Sun at start, highest, end | Reference's visible table | First version here       | Present version here |
+| -------------------- | -------------------------- | ------------------------- | ------------------------ | -------------------- |
+| London 16 Nov 16:46  | −5.97°, −6.31°, −6.65°     | whole pass                | starts 13 s late         | whole pass           |
+| Sydney 15 Nov 18:14  | −6.26°, −5.63°, −4.99°     | whole pass, to 78°        | cut off at 23°, climbing | whole pass           |
+| Atlanta 16 Nov 22:57 | −5.47°, −5.86°, −6.25°     | absent                    | last 77 s only           | whole pass           |
+| Sydney 17 Nov 18:15  | −5.75°, −5.18°, −4.60°     | absent                    | daylight                 | daylight             |
+
+Cutting a pass at the instant the Sun passes −6° reports a satellite vanishing in mid-sky, which
+nobody would see: twilight changes slowly and the station is bright. The predictor now judges
+darkness once for each sunlit stretch: if the Sun is 6° down or more at any moment of it, the whole
+stretch is reported. That agrees with the reference on three of the four, and on the fourth
+(Atlanta) differs as described above. The reference's tables are consistent with its testing the
+Sun near the start of the pass against about −6°, but that is an inference from four rows, not
+something read in its documentation. (My working notes from earlier in the session say
+Heavens-Above states a −6° condition; the page was not re-read when this entry was written.)
+
+**The "pass type" column of the all-passes table means something slightly different.** On 9 of the
+153 passes the label there differs from this project's. On 8 of them (London 16, 18, 20, 22 and
+24 November near 20:00 UTC; Sydney 18, 21 and 24 November) the reference says "visible" and this
+project says the station is in shadow. In each, the station is sunlit only while lower than 10°
+(the highest sunlit point is between 1.9° and 8.2° up) and has entered the shadow before reaching
+the part of the sky a pass is counted in. Checked the other way round: on all 45 passes the
+reference labels "night (unlit)", the station is never sunlit above the horizon at all. So that
+column appears to say whether the station is lit anywhere above the horizon, and this project asks
+whether it is lit above 10°. None of the 8 is in the reference's own visible table. The ninth is
+Sydney 17 November, in the table above.
+
+**Result: pass.** The gate asks for agreement at three or more places within a reasonable
+tolerance; four places agree within 5 s over ten days and within 2 s over the first three.
+
+**What this does and does not show.**
+
+- It shows that the chain from element set to "look north-west at 6:47 pm" is implemented
+  correctly: SGP4, sidereal time, the observer's frame on the ellipsoid, the search for rise, peak
+  and set, the Sun's position and the shadow test.
+- It does not show how close either source is to the real station. Both run the same model on
+  nearly the same published elements. Nobody has yet stood outside and timed a pass against this
+  site; that is the check that would.
+- Only the ISS was compared. Tiangong and the other satellites go through the same code, but no
+  reference table was fetched for them.
+- The Sun's elevation comes from the low-precision formula validated in V3.1. Atmospheric
+  refraction is ignored, for the Sun and for the satellite.
+- The Earth's shadow is a cylinder of the equatorial radius. The real shadow's partly-lit fringe at
+  the station's height is about 22 km across (the Sun's 0.53° disc seen from about 2,350 km behind
+  the Earth's edge: my arithmetic, not a cited figure), which the station crosses in a few seconds.
+
+### V4.3 The list of places, and the passes panel
+
+- **Date:** 2026-11-15
+- **Source of the place list:** the GeoNames gazetteer, file `cities15000` (populated places of
+  15,000 people or more), licensed CC BY 4.0, taken from the copy bundled in the npm package
+  `cities-15000-structured` 1.0.1, whose newest record is dated 2023-03-05. The licence statement
+  was read in that package's README, not on geonames.org. `scripts/build-places.mjs` turns it into
+  `public/places.txt`.
+- **Reproduce:** `npm run test -- tests/passes src/passes`
+
+| Check                                                                                                         | Result                                    |
+| ------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| Places in the file; all parse                                                                                 | 26,435 of 26,435                          |
+| Time zones named in the file; all known to the JavaScript engine (Node.js 22)                                 | 357 of 357                                |
+| Atlanta, London, Sydney, Singapore found first under their names, within 0.1° of the coordinates used in V4.2 | 4 of 4                                    |
+| File size                                                                                                     | 738,077 bytes; 369,957 after gzip         |
+| Spot check of the column layout: the row for Atlanta                                                          | 33.749, −84.388, US, GA, America/New_York |
+
+The file is downloaded only when the viewer starts typing a place, and is not part of the first
+download. A browser test confirms that choosing a city causes no request other than that file, to
+this site itself, and that nothing typed appears in any address requested.
+
+**The panel, with real data.** The built page was opened in headless Chrome with the real catalog
+of 2026-11-15T11:52Z. For London it listed the ISS pass of 16 November as 4:46:44 PM to 4:51:26 PM
+local time, the same seconds as the reference row in V4.2 (16:46:44 to 16:51:26 UTC); for Atlanta
+(typed as coordinates) the 44-second pass of 15 November at 6:47:19 PM, also as in the reference.
+Tiangong appeared in both lists. Working out five days of passes for the two stations was
+immediate; for 149 further low-orbit objects (a stand-in for the bright list, see V4.4) it took
+1.8 s in that software-rendered browser, in batches of 8 so that the dots keep moving.
+
+**From memory, not checked:** the sentence shown when no visible pass is found, that a station's
+visible passes "come in runs, with gaps of days or weeks between". The reference tables are
+consistent with it (Atlanta has 1 visible pass in ten days, London 20), but the statement itself is
+general knowledge.
+
+### V4.4 CelesTrak's list of the brightest objects
+
+- **Date:** 2026-11-15
+- **What was checked:** the name of the group. CelesTrak's current-data page
+  (https://celestrak.org/NORAD/elements/) lists "100 (or so) Brightest" with `GROUP=visual`; read
+  on 2026-11-15 through an automated page reader, which reported the link text and the group value.
+- **Status of the download itself: not yet run.** The group was added to the pipeline in this
+  phase and the build environment may not contact CelesTrak. Until the first scheduled run after
+  the merge, the published catalog has no such group and the site offers passes for the two space
+  stations only. The first run is the test of: the request being accepted, how many objects the
+  group holds, and how many of them were not already in the catalog.
+
+The list of other satellites in the panel was tried with a local stand-in: the real catalog with
+149 low-orbit objects marked as if they were in the group. That file was never published.
+
+### V4.5 Build and browser checks at the end of Phase 4
+
+- **Date:** 2026-11-15
+- **Environment:** as in V1.4 (Node.js 22.23.4, headless Chrome with software rendering). No
+  physical device.
+
+| Check                                             | Result                                          |
+| ------------------------------------------------- | ----------------------------------------------- |
+| Prettier, ESLint (strict, type-aware), TypeScript | Pass, 0 findings                                |
+| Unit and validation tests                         | 388 of 388 pass                                 |
+| Browser tests, desktop and Pixel 7 emulation      | 72 of 72 pass                                   |
+| Initial download (HTML + JS + CSS, gzip level 9)  | 175.6 kB against a 300 kB budget (was 167.2 kB) |
+
+The 26 new browser tests cover: pausing, resuming, the four speeds, the slider by pointer and by
+keyboard, stopping at the three-day limit and returning to the present; and for passes, asking for
+a place before listing anything, finding a city by name, typed coordinates, the device's position
+when allowed and when refused, remembering and forgetting the place, the contents of a row, paging,
+the two options, and showing a pass in the 3D view. The pass tests use fixture orbits listed under
+a pretend bright group; they test that the page works, not that the times are right (V4.2 does
+that).
+
+**Not done:** any real phone or tablet; Firefox, Safari and Edge; a screen reader; the browser's
+real permission prompt for location (the tests grant or withhold permission directly).

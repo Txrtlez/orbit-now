@@ -13,13 +13,22 @@ const GROUP_COLOURS: Readonly<Record<string, Rgb>> = {
   'fengyun-1c-debris': [230, 159, 0], // orange
   'cosmos-2251-debris': [204, 121, 167], // reddish purple
   'iridium-33-debris': [0, 158, 115], // bluish green
+  // The brightest objects that are not active satellites: spent rocket
+  // stages and satellites no longer working. (Active ones keep the white.)
+  visual: [150, 160, 175], // grey
 };
 
 /** Used for any group this file does not know about. */
 const FALLBACK_COLOUR: Rgb = [150, 160, 175];
 
 /** Groups in the order their colour takes precedence when an object belongs to several. */
-const PRECEDENCE = ['fengyun-1c-debris', 'cosmos-2251-debris', 'iridium-33-debris', 'active'];
+const PRECEDENCE = [
+  'fengyun-1c-debris',
+  'cosmos-2251-debris',
+  'iridium-33-debris',
+  'active',
+  'visual',
+];
 
 /** The display colour of a group, as red, green and blue from 0 to 255. */
 export function colourOfGroup(groupId: string): Rgb {

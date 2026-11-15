@@ -5,22 +5,25 @@ debris-cascade ("Kessler syndrome") simulator.
 
 **Live site:** <https://txrtlez.github.io/orbit-now/>
 
-**Status: Phases 1 to 3 are done.** The site shows the Earth with its real day and night sides and
+**Status: Phases 1 to 4 are done.** The site shows the Earth with its real day and night sides and
 about 19,500 objects moving in real time. Click or tap an object to see what it is, where it is
-and the path of its orbit; search by name or number; filter by constellation, orbit, launch year
-kind and owner. The data covers active satellites and
-three debris clouds, not every tracked object (see "Data source"). What is still unproven about Phase 3 is
-listed first under "Known issues".
+and the path of its orbit; search by name or number; filter by constellation, orbit, launch year,
+kind and owner. The clock can be paused, run at up to 600 times normal speed, or moved three days
+either way. Give a place (your device's position, a city, or coordinates) and the site lists the
+passes of the space stations and other bright satellites over it for the next five days, and
+which of them can be seen. The data covers active satellites, three debris clouds and CelesTrak's
+list of the brightest objects, not every tracked object (see "Data source"). What is still
+unproven is listed first under "Known issues".
 
-| Phase | Scope                                                                     | State                                                                                                                 |
-| ----- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| 1     | Repository structure, tooling, CI, deploy pipeline, empty app             | Done                                                                                                                  |
-| 2     | Scheduled OMM data pipeline; SGP4 validated against published vectors     | Done, with one documented exception in the SGP4 gate                                                                  |
-| 3     | Earth rendering, all objects moving, picking, info panel, filters, search | Done. Frame rate measured by the owner at 240 fps (PC) and 60 fps (phone), before the interaction features were added |
-| 4     | Overhead passes with visibility; time controls                            | Not started                                                                                                           |
-| 5     | Historical debris layers; growth-of-orbit chart                           | Not started                                                                                                           |
-| 6     | "What if?" mode: breakup model, propagation, reentry, cascade statistics  | Not started                                                                                                           |
-| 7     | Guided tour, shareable links, About page, accessibility, launch           | Not started                                                                                                           |
+| Phase | Scope                                                                     | State                                                                                                                        |
+| ----- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| 1     | Repository structure, tooling, CI, deploy pipeline, empty app             | Done                                                                                                                         |
+| 2     | Scheduled OMM data pipeline; SGP4 validated against published vectors     | Done, with one documented exception in the SGP4 gate                                                                         |
+| 3     | Earth rendering, all objects moving, picking, info panel, filters, search | Done. Frame rate measured by the owner at 240 fps (PC) and 60 fps (phone), before the interaction features were added        |
+| 4     | Overhead passes with visibility; time controls                            | Done. ISS passes agree with Heavens-Above at four places (launch gate 2). The bright-objects group awaits its first download |
+| 5     | Historical debris layers; growth-of-orbit chart                           | Not started                                                                                                                  |
+| 6     | "What if?" mode: breakup model, propagation, reentry, cascade statistics  | Not started                                                                                                                  |
+| 7     | Guided tour, shareable links, About page, accessibility, launch           | Not started                                                                                                                  |
 
 ## Run it
 
@@ -79,8 +82,9 @@ GitHub Pages on a free account requires the repository to be public.
 
 Every comparison against an outside reference is recorded in [`VALIDATION.md`](./VALIDATION.md),
 with numbers, dates and the command that reproduces it. Of the four launch gates, the SGP4 test
-vectors pass with one documented exception; the other three (ISS passes, breakup-model curves, J2
-nodal precession) belong to later phases and are listed there as not yet run.
+vectors pass with one documented exception and the ISS passes agree with Heavens-Above at four
+places; the other two (breakup-model curves, J2 nodal precession) belong to Phase 6 and are listed
+there as not yet run.
 
 The validation tests assert limits; the numbers actually measured are written to a file when asked:
 
@@ -96,8 +100,12 @@ src/
   main.ts                  Start-up: wires the globe, the data and the interface together
   styles.css               All styling
   app/                     Interface code that is not 3D: selection, the object card, search,
-                           filters, number formatting, tabs
-  geo/                     Earth geometry: WGS 84 constants, coordinate conversions both ways
+                           filters, the clock and time bar, the passes panel, number
+                           formatting, tabs
+  geo/                     Earth geometry: WGS 84 constants, coordinate conversions both ways,
+                           where something appears in an observer's sky
+  passes/                  Pass prediction and visibility, which satellites to predict for,
+                           finding a place by name or coordinates, keeping the viewer's place
   orbit/                   Time and frames, SGP4 for many objects, orbit regimes and orbit-path
                            sampling, the background worker
   render/                  three.js scene: Earth, sunlight, the object layer, the orbit line and
@@ -110,7 +118,9 @@ tests/validation/          Launch-gate validations against published reference d
 tests/pipeline/            Pipeline tests; the network is always substituted, never contacted
 tests/fixtures/            The reference data itself, with provenance notes
 e2e/                       Playwright browser tests, run against the production build
-scripts/                   Build-time checks (bundle size budget)
+tests/passes/              Checks on the published list of places
+public/places.txt          Cities for the passes panel (GeoNames), downloaded on demand
+scripts/                   Build-time checks (bundle size budget); how the list of places was made
 .github/workflows/         CI and GitHub Pages deployment
 VALIDATION.md              Record of every check against an outside reference
 ```
@@ -328,11 +338,61 @@ SATCAT is requested group by group (`records.php?GROUP=...`), not as CelesTrak's
 file: the complete file is several times larger and consists mostly of objects that decayed long
 ago, and the usage policy asks for only the data that is needed.
 
+### 20. One clock, and keyframes that spread out as it runs faster
+
+Everything that depends on time (object positions, the Earth's rotation, the Sun, the readouts)
+asks one clock, `src/app/clock.ts`, which is the real time unless the viewer pauses it, changes
+its speed (1, 10, 60 or 600 times) or moves it, by up to three days either way. Three days because
+positions come from today's elements, and the further from their date, the worse they are.
+
+Decision 12 has SGP4 run every 5 simulated seconds. At 600× that would be 120 runs a second, so
+the spacing grows with the speed: one keyframe per half second of real time, between 5 s and 300 s
+of simulated time. The cost at the widest spacing is about 0.7 km of position, far less than a
+dot's width at any zoom (VALIDATION.md, V4.1). A jump in time redraws from fresh keyframes without
+blanking the dots.
+
+### 21. What counts as a pass, and as a visible one
+
+A pass is counted while the satellite is at least 10° above the observer's horizon, the convention
+of the reference tables it was validated against. It is called visible if, during some part of it,
+the satellite is in sunlight and the observer's sky is dark, taken as the Sun 6° or more below the
+horizon (the end of civil twilight). Darkness is judged once for each sunlit stretch of a pass,
+not instant by instant, after the comparison with Heavens-Above showed that the stricter rule cut
+passes off in mid-sky at dusk and dawn (VALIDATION.md, V4.2). The Earth's shadow is a cylinder.
+Nothing is said about how bright a satellite will look: that needs each object's size and
+reflectivity, which the data does not include.
+
+Rise, set and shadow times are found by sampling SGP4 positions (every 30 s, coarser when the
+satellite is far below the horizon) and halving the interval around each change down to 50 ms.
+Predictions run in the background thread, a few satellites per request, so the dots keep moving.
+
+### 22. The viewer's place stays in the browser
+
+There is no server, so there is nowhere for a location to go. The place comes from the device
+(with the browser's permission), from a city chosen in a list, or from typed coordinates. It is
+rounded to a hundredth of a degree, about a kilometre, which moves a pass by under a second, and
+kept in the browser's local storage so that it need not be given again; "Change place" erases it.
+
+The city list is a file on this site (26,435 places from GeoNames, 370 kB compressed), downloaded
+only when the viewer starts typing and searched in the browser. The alternative, a geocoding
+service, would have sent what the viewer types to a third party. The list gives each city's time
+zone, so pass times for a city are in that city's time; for the device's position or typed
+coordinates they are in the device's time zone, and the panel says which.
+
+### 23. Which satellites get pass predictions
+
+Predicting passes for 19,500 objects would produce thousands of rows a day, nearly all of things
+too faint to see. Two sets are used: the two space stations, found by catalog number (25544 and
+48274, each standing for all of its station's modules), and the objects in CelesTrak's group
+"visual", its list of the hundred or so brightest. The second set is off until asked for, because
+it makes a long list. Adding that group also brings into the catalog some spent rocket stages and
+dead satellites that the "active" group leaves out.
+
 ## Data source
 
 **What the site shows.** Orbital data comes from [CelesTrak](https://celestrak.org), which
 republishes the US Space Force's general-perturbations (GP) element sets. Four of CelesTrak's
-groups are used:
+groups are used for the bulk of it:
 
 | CelesTrak group      | Objects on 2026-11-15 |
 | -------------------- | --------------------- |
@@ -342,8 +402,12 @@ groups are used:
 | `iridium-33-debris`  | 109                   |
 | **Total**            | **19,559**            |
 
+A fifth group, `visual` (CelesTrak's "100 (or so) Brightest"), was added on 2026-11-15 for the
+pass predictions. It had not yet been downloaded when this was written, so its size, and how many
+of its objects the other groups do not already include, are not known (VALIDATION.md, V4.4).
+
 **What each object is.** Kind (payload, rocket body, debris), operational status, owner and launch
-date come from CelesTrak's satellite catalog, SATCAT, requested once a day for the same four
+date come from CelesTrak's satellite catalog, SATCAT, requested once a day for the same
 groups. The first download, on 2026-11-15, covered every object in the catalog. An object
 catalogued since the last download has no such fields until the next one; for it the site derives
 the launch year from the international designator and shows nothing for the rest.
@@ -367,7 +431,8 @@ format records which source each object came from.
 `.github/workflows/data.yml` runs at 03:17, 11:17 and 19:17 UTC. Each run:
 
 1. reads the currently published data from the `data` branch;
-2. requests each group's orbital elements once from CelesTrak as OMM CSV, smallest group first;
+2. requests each group's orbital elements once from CelesTrak as OMM CSV, smallest group first
+   (except the bright-objects group, the newest, which is asked for last);
 3. if at least 22 hours have passed since it last asked, requests the satellite-catalog records
    for the same groups, also as CSV;
 4. checks every row (see `pipeline/omm.ts` and `pipeline/satcat.ts` for the rules) and each
@@ -402,19 +467,52 @@ and why.
 
 ## Known issues
 
-Unproven parts of Phase 3, most important first:
+Unproven parts of Phases 3 and 4, most important first:
 
+- **The bright-objects group has not been downloaded yet.** It was added to the pipeline in Phase
+  4; the first scheduled run after the merge is its first test (VALIDATION.md, V4.4). Until then
+  the passes panel offers the two space stations only. If CelesTrak refuses that one request, the
+  other groups will already have been refreshed in the same run, and the run will be marked failed.
+- **No predicted pass has been checked against the sky.** The predictions agree with Heavens-Above
+  to a few seconds, but both use the same model and nearly the same elements. Watching one pass of
+  the ISS with a clock in hand would be the first real-world check of this site.
+- **Only the ISS was compared with a reference.** Tiangong and the other satellites use the same
+  code but were not compared with anything.
 - **Frame rate has not been measured since the interaction features were added.** The 240 fps and
-  60 fps figures were taken on the build before selection, search and filters existed. Add `?stats`
-  to the page address to measure again; the phone's model would make the figure meaningful.
+  60 fps figures were taken on the build before selection, search, filters, time controls and
+  passes existed. Add `?stats` to the page address to measure again; the phone's model would make
+  the figure meaningful. Running at 600× has not been tried on a phone at all.
+- **The Heavens-Above tables are kept in the repository as test data** (186 rows, with the source
+  named). Its terms of use were not read. If that is a concern, delete
+  `tests/fixtures/passes/heavens-above-iss-2026-11-15.json` and the test that reads it; the record
+  of the comparison in VALIDATION.md stands on its own.
 - **The owner names were transcribed by an automated page reader** and not checked name by name
   against CelesTrak's list; the number of rows matches (VALIDATION.md, V3.10). Three owner codes in
   the data (`KWT`, `SVK`, `JOR`) are not on CelesTrak's list and are shown as bare codes.
 - **Dots are coloured by the CelesTrak group they came from, not by kind of object.** The brief asks
   for colour by object type. With the present data the two nearly coincide (the active list is
   payloads; the three debris groups are debris), and the group colours also tell the three debris
-  clouds apart, so the colouring was left as it is. It should be revisited if the full catalog,
-  with its rocket bodies and inactive satellites, is ever added.
+  clouds apart, so the colouring was left as it is. Objects that only the bright-objects group
+  lists (spent rocket stages, dead satellites) are drawn grey. It should be revisited if the full
+  catalog is ever added.
+
+Limits of the passes panel:
+
+- **"Visible" says nothing about brightness, weather or obstructions.** A low pass of a small
+  satellite counts the same as the ISS overhead. The list of other bright satellites is CelesTrak's
+  judgement of what is bright, not this project's.
+- **Passes are listed five days ahead, but the 3D view only moves three.** A pass further ahead
+  than that has no "Show in 3D" button.
+- **Later passes are less certain.** They are computed from today's elements; orbits decay and the
+  stations are boosted from time to time. The list is recomputed when the page is reloaded with
+  newer data, and the dates of large changes are not known in advance.
+- **A city has one name in the list,** usually the English one, and only places of 15,000 people or
+  more are in it. Anywhere else can be given as coordinates or by the device.
+- **For typed coordinates the times are in the device's time zone,** which is wrong if the
+  coordinates are somewhere else. The panel says which time zone it is using.
+- **The observer is at sea level.** A kilometre of height changes a pass by under a second.
+- **The marker for the viewer's place has no label,** and the camera does not follow a pass: it
+  turns to face the place once when "Show in 3D" is pressed.
 
 Limits of what is built:
 
@@ -461,5 +559,8 @@ Carried over:
 
 - Orbital data and satellite catalog: [CelesTrak](https://celestrak.org) (Dr. T.S. Kelso), from
   general-perturbations data published by the US Space Force's 18th Space Defense Squadron.
+- City names, positions and time zones: [GeoNames](https://www.geonames.org) (CC BY 4.0), through
+  the npm package `cities-15000-structured` by Adam Averay (MIT licence).
+- Reference pass tables used in testing: [Heavens-Above](https://www.heavens-above.com).
 - Earth imagery: NASA Earth Observatory, Blue Marble Next Generation (2004) and Black Marble (2012).
   Provenance and the one change made are in `public/textures/README.md`.
