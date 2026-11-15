@@ -4,8 +4,12 @@ import { renderCatalogStatus, summariseCatalog } from './app/catalogStatus';
 import { createFrameStats } from './app/stats';
 import { initTabs } from './app/tabs';
 import { createExplorer, type Explorer } from './app/explorer';
+import { createFilterPanel } from './app/filterPanel';
+import { formatCount } from './app/format';
+import { buildSearchIndex, searchObjects } from './app/search';
+import { initSearchBox } from './app/searchBox';
 import { CATALOG_URL, loadCatalog } from './catalog/load';
-import { buildObjectIndex } from './catalog/objectIndex';
+import { buildObjectIndex, categoryAt, type ObjectIndex } from './catalog/objectIndex';
 import { startPropagation } from './orbit/propagationClient';
 import { createGlobe, type Globe } from './render/globe';
 import { createOrbitPathLayer } from './render/orbitPathLayer';
@@ -128,29 +132,39 @@ function startOverviewToggle(): void {
  */
 function startInsetTracking(globe: Globe): void {
   const narrow = window.matchMedia('(max-width: 719px)');
-  const cards = [
+  // Sheets across the bottom of a narrow screen...
+  const sheets = [
     requireElement('overview', HTMLElement),
     requireElement('object-panel', HTMLElement),
     requireElement('whatif-card', HTMLElement),
   ];
+  // ...and what runs across the top of it.
+  const bars = [requireElement('topbar', HTMLElement), requireElement('search', HTMLElement)];
   let first = true;
   const update = (): void => {
-    let covered = 0;
+    let top = 0;
+    let bottom = 0;
     if (narrow.matches) {
-      for (const card of cards) {
-        const bounds = card.getBoundingClientRect();
-        // A hidden card has no size.
+      // A hidden element has no size and is skipped.
+      for (const bar of bars) {
+        const bounds = bar.getBoundingClientRect();
         if (bounds.height > 0) {
-          covered = Math.max(covered, window.innerHeight - bounds.top);
+          top = Math.max(top, bounds.bottom);
+        }
+      }
+      for (const sheet of sheets) {
+        const bounds = sheet.getBoundingClientRect();
+        if (bounds.height > 0) {
+          bottom = Math.max(bottom, window.innerHeight - bounds.top);
         }
       }
     }
-    globe.setBottomInset(covered, !first && !reducedMotion.matches);
+    globe.setInsets(top, bottom, !first && !reducedMotion.matches);
     first = false;
   };
   const observer = new ResizeObserver(update);
-  for (const card of cards) {
-    observer.observe(card);
+  for (const tracked of [...sheets, ...bars]) {
+    observer.observe(tracked);
   }
   narrow.addEventListener('change', update);
   window.addEventListener('resize', update);
@@ -182,6 +196,45 @@ function startTabs(): void {
       },
     },
   ]);
+}
+
+/** The most suggestions shown under the search field. */
+const MAX_SUGGESTIONS = 8;
+
+/** Switch the search field on, now that there are objects to find. */
+function startSearch(objects: ObjectIndex, select: (index: number) => void): void {
+  const input = requireElement('search-input', HTMLInputElement);
+  const searchIndex = buildSearchIndex(objects.records);
+  // Positions in the catalog of the suggestions currently on screen.
+  let shown: number[] = [];
+  initSearchBox({
+    input,
+    list: requireElement('search-results', HTMLElement),
+    status: requireElement('search-status', HTMLElement),
+    suggest: (query) => {
+      shown = searchObjects(searchIndex, query, MAX_SUGGESTIONS);
+      return shown.map((index) => {
+        const record = objects.records[index];
+        const category = categoryAt(objects, index);
+        const number = record === undefined ? '' : `No. ${String(record.noradId)}`;
+        return {
+          title:
+            record === undefined || record.name === ''
+              ? `Object ${String(record?.noradId ?? '')}`
+              : record.name,
+          detail: category.id === 'other' ? number : `${category.label} · ${number}`,
+        };
+      });
+    },
+    onChoose: (position) => {
+      const index = shown[position];
+      if (index !== undefined) {
+        select(index);
+      }
+    },
+  });
+  input.placeholder = `Search ${formatCount(objects.count)} objects`;
+  input.disabled = false;
 }
 
 type CatalogState = 'loading' | 'loaded' | 'missing' | 'error';
@@ -262,6 +315,23 @@ async function startCatalog(globe: Globe | null): Promise<void> {
       },
     });
     explorer = created;
+    startSearch(objects, (index) => {
+      created.select(index, true);
+    });
+    createFilterPanel({
+      container: requireElement('filter-panel', HTMLElement),
+      summary: requireElement('filters-summary', HTMLElement),
+      objects,
+      onChange: (passes, shown) => {
+        created.setFilter(passes);
+        headline.textContent =
+          passes === null
+            ? `Showing ${formatCount(objects.count)} objects`
+            : `Showing ${formatCount(shown)} of ${formatCount(objects.count)} objects`;
+        document.documentElement.dataset.shown = String(shown);
+      },
+    });
+    requireElement('filters', HTMLElement).hidden = false;
     // A small hook for the end-to-end tests, which need to know where an
     // object is on screen in order to click it. It exposes nothing private.
     window.orbitNowDebug = {

@@ -228,7 +228,7 @@ describe('tleToOmm (test helper)', () => {
     }
     const omm = tleToOmm(first.line1, first.line2);
     expect(omm.NORAD_CAT_ID).toBe(5);
-    expect(omm.OBJECT_ID).toBe('58002B');
+    expect(omm.OBJECT_ID).toBe('1958-002B');
     // Day 179 of 2000 is 27 June; 0.78495062 day = 18:50:19.733568.
     expect(omm.EPOCH).toBe('2000-06-27T18:50:19.733568');
     expect(omm.MEAN_MOTION).toBe(10.82419157);

@@ -58,6 +58,7 @@ async function findClickableObject(page: Page): Promise<Target | null> {
 
 /** Wait until some object can be clicked unambiguously, and say where it is. */
 async function waitForClickableObject(page: Page): Promise<Target> {
+  await waitForSteadyView(page);
   const deadline = Date.now() + 15_000;
   for (;;) {
     const target = await findClickableObject(page);
@@ -69,6 +70,42 @@ async function waitForClickableObject(page: Page): Promise<Target> {
     }
     await page.waitForTimeout(250);
   }
+}
+
+/**
+ * Wait until the picture has stopped shifting. On a phone-sized screen the
+ * Earth is re-centred when a sheet opens or closes, a frame or two after
+ * the sheet itself appears; positions measured before that would be stale
+ * by the time they were tapped.
+ */
+async function waitForSteadyView(page: Page): Promise<void> {
+  const snapshot = (): Promise<string> =>
+    page.evaluate(() => {
+      const debug = window.orbitNowDebug;
+      if (debug === undefined) {
+        return '';
+      }
+      return debug
+        .noradIds()
+        .map((noradId) => {
+          const position = debug.screenPositionOf(noradId);
+          // To the nearest 4 pixels: the objects themselves drift slowly.
+          return position === null
+            ? '-'
+            : `${String(Math.round(position.x / 4))},${String(Math.round(position.y / 4))}`;
+        })
+        .join(';');
+    });
+  let previous = await snapshot();
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    await page.waitForTimeout(150);
+    const current = await snapshot();
+    if (current === previous) {
+      return;
+    }
+    previous = current;
+  }
+  throw new Error('The view did not settle');
 }
 
 /** Find a spot on the globe view with no object anywhere near it. */
@@ -84,8 +121,17 @@ async function findEmptySpot(page: Page): Promise<{ x: number; y: number } | nul
       .filter((position) => position !== null);
     for (let y = 100; y < window.innerHeight - 100; y += 20) {
       for (let x = 20; x < window.innerWidth - 20; x += 20) {
+        // Clear of the interface by a margin, not merely at the exact
+        // point: a fingertip landing on the very edge of a control can go to it.
+        const onGlobe = [
+          [0, 0],
+          [-12, 0],
+          [12, 0],
+          [0, -12],
+          [0, 12],
+        ].every(([dx = 0, dy = 0]) => document.elementFromPoint(x + dx, y + dy)?.id === 'globe');
         if (
-          document.elementFromPoint(x, y)?.id === 'globe' &&
+          onGlobe &&
           placed.every((position) => Math.hypot(position.x - x, position.y - y) > 60)
         ) {
           return { x, y };
@@ -157,6 +203,7 @@ test('clears the selection with the close button, the Escape key, or a tap on em
   await expect(panel).toBeHidden();
 
   await select();
+  await waitForSteadyView(page);
   const empty = await findEmptySpot(page);
   if (empty === null) {
     throw new Error('No empty spot was found');

@@ -19,7 +19,7 @@
       aria-label="3D view of the Earth with the tracked objects orbiting it"
     ></canvas>
 
-    <header class="topbar">
+    <header id="topbar" class="topbar">
       <h1 class="wordmark">Orbit Now</h1>
       <div class="tabs" role="tablist" aria-label="Mode">
         <button
@@ -50,6 +50,28 @@
       <div id="hover-label" class="hover-label" hidden></div>
 
       <div id="panel-now" class="mode-layer" role="tabpanel" aria-labelledby="tab-now">
+        <div id="search" class="search" role="search">
+          <label class="visually-hidden" for="search-input">
+            Search for an object by name, catalog number or designator
+          </label>
+          <input
+            id="search-input"
+            type="search"
+            role="combobox"
+            aria-expanded="false"
+            aria-controls="search-results"
+            aria-autocomplete="list"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+            enterkeyhint="search"
+            placeholder="Search name or number"
+            disabled
+          />
+          <ul id="search-results" class="search-results" role="listbox" hidden></ul>
+          <p id="search-status" class="visually-hidden" role="status"></p>
+        </div>
+
         <section id="overview" class="card overview" aria-labelledby="overview-title">
           <header class="card-header">
             <div class="card-titles">
@@ -67,6 +89,10 @@
           </header>
           <div id="overview-body" class="card-body">
             <div id="catalog-status" class="catalog-status"></div>
+            <details id="filters" class="details" hidden>
+              <summary id="filters-summary">Filters</summary>
+              <div id="filter-panel" class="filter-panel"></div>
+            </details>
             <details class="details">
               <summary>What am I looking at?</summary>
               <p class="muted">

@@ -115,9 +115,27 @@ function parseImpliedDecimal(field: string, what: string): number {
 }
 
 /**
+ * Rewrite an international designator from the compact form used in a TLE
+ * ("98067A": two-digit year, launch number, piece) to the form used in OMM
+ * records ("1998-067A"). The year follows the TLE convention: 57 to 99 mean
+ * 1957 to 1999, 00 to 56 mean 2000 to 2056. Text that is not in the TLE form
+ * is returned unchanged.
+ */
+function designatorFromTle(text: string): string {
+  const match = /^(\d{2})(\d{3})([A-Z]{1,3})$/.exec(text);
+  if (match === null) {
+    return text;
+  }
+  const [, twoDigitYear = '', launch = '', piece = ''] = match;
+  const year =
+    Number(twoDigitYear) < 57 ? 2000 + Number(twoDigitYear) : 1900 + Number(twoDigitYear);
+  return `${String(year)}-${launch}${piece}`;
+}
+
+/**
  * Re-express a two-line element set as an OMM record of the kind CelesTrak
  * serves as JSON. The conversion is exact: every number is carried over
- * digit for digit, and the epoch (given in a TLE as a day of year to 1e-8
+ * digit for digit, the designator is rewritten in the OMM form, and the epoch (given in a TLE as a day of year to 1e-8
  * day, which is exactly 864 microseconds) is written to the microsecond.
  *
  * Production code never sees TLEs. It receives OMM records, so the
@@ -143,7 +161,7 @@ export function tleToOmm(line1: string, line2: string): OMMJsonObject {
 
   return {
     OBJECT_NAME: `VERIFICATION ${line2.slice(2, 7)}`,
-    OBJECT_ID: line1.slice(9, 17).trim(),
+    OBJECT_ID: designatorFromTle(line1.slice(9, 17).trim()),
     EPOCH: epoch,
     MEAN_MOTION: requireNumber(line2.slice(52, 63), 'mean motion'),
     ECCENTRICITY: requireNumber(`0.${line2.slice(26, 33)}`, 'eccentricity'),

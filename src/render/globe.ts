@@ -169,13 +169,14 @@ export interface Globe {
   /** The camera's current state. */
   view(): GlobeView;
   /**
-   * Tell the globe that the bottom `pixels` CSS pixels of the view are
-   * covered by part of the interface. The Earth is then centred in what is
-   * left, so that a sheet sliding up on a phone does not hide half of it.
+   * Tell the globe how many CSS pixels at the top and at the bottom of the
+   * view are covered by parts of the interface. The Earth is then centred
+   * in what is left, so that a sheet sliding up on a phone does not hide
+   * half of it.
    *
    * @param animate false to move at once
    */
-  setBottomInset(pixels: number, animate: boolean): void;
+  setInsets(top: number, bottom: number, animate: boolean): void;
   /**
    * Turn the camera so that the given direction from the Earth's centre
    * faces the viewer, moving back if necessary so that a point at
@@ -397,32 +398,43 @@ export function createGlobe(options: GlobeOptions): Globe {
 
   let pixelRatio = 1;
   let viewMinCssPx = 1;
-  // How much of the bottom of the view is covered by the interface: the
-  // value asked for, and the value currently drawn while it eases there.
-  let insetTarget = 0;
-  let insetShown = 0;
+  // How much of the top and bottom of the view is covered by the
+  // interface: the values asked for, and the values currently drawn while
+  // they ease there.
+  const insetTarget = { top: 0, bottom: 0 };
+  const insetShown = { top: 0, bottom: 0 };
   /**
    * Point the camera's window at the uncovered part of the view. The
    * picture is computed as if the view were its full size and then shifted
-   * up by half the covered height, which centres the Earth in what is left
-   * without changing its apparent size or the meaning of pixel coordinates.
+   * vertically so that its centre falls in the middle of the uncovered
+   * band, which centres the Earth there without changing its apparent size
+   * or the meaning of pixel coordinates.
    */
   const applyProjection = (): void => {
     const width = Math.max(1, canvas.clientWidth);
     const height = Math.max(1, canvas.clientHeight);
+    const covered = insetShown.top + insetShown.bottom;
     camera.aspect = width / height;
-    if (insetShown > 0.5) {
-      camera.setViewOffset(width, height, 0, insetShown / 2, width, height);
+    if (covered > 0.5) {
+      // A positive offset moves the picture up.
+      camera.setViewOffset(
+        width,
+        height,
+        0,
+        (insetShown.bottom - insetShown.top) / 2,
+        width,
+        height,
+      );
     } else {
       camera.clearViewOffset();
     }
     camera.updateProjectionMatrix();
     if (!viewerHasInteracted) {
       // Fit the Earth into the uncovered part of the view.
-      const freeAspect = width / Math.max(1, height - insetShown);
+      const freeAspect = width / Math.max(1, height - covered);
       const freeFov =
         (2 *
-          Math.atan(Math.tan((VERTICAL_FOV_DEG * Math.PI) / 360) * (1 - insetShown / height)) *
+          Math.atan(Math.tan((VERTICAL_FOV_DEG * Math.PI) / 360) * (1 - covered / height)) *
           180) /
         Math.PI;
       camera.position.setLength(
@@ -458,11 +470,14 @@ export function createGlobe(options: GlobeOptions): Globe {
     const nowMs = options.nowMs();
 
     earthGroup.rotation.y = gmstRadians(nowMs);
-    if (insetShown !== insetTarget) {
+    if (insetShown.top !== insetTarget.top || insetShown.bottom !== insetTarget.bottom) {
       // Close a fixed fraction of the remaining gap each frame: quick at
       // first, settling gently, and finished within about a third of a second.
-      const remaining = insetTarget - insetShown;
-      insetShown = Math.abs(remaining) < 0.5 ? insetTarget : insetShown + remaining * 0.2;
+      for (const edge of ['top', 'bottom'] as const) {
+        const remaining = insetTarget[edge] - insetShown[edge];
+        insetShown[edge] =
+          Math.abs(remaining) < 0.5 ? insetTarget[edge] : insetShown[edge] + remaining * 0.2;
+      }
       applyProjection();
     }
     if (flight !== null) {
@@ -573,12 +588,17 @@ export function createGlobe(options: GlobeOptions): Globe {
         height: Math.max(1, canvas.clientHeight),
       };
     },
-    setBottomInset(pixels, animate): void {
+    setInsets(top, bottom, animate): void {
       const height = Math.max(1, canvas.clientHeight);
-      // Never treat more than 70% of the view as covered: the Earth needs somewhere to go.
-      insetTarget = Math.min(Math.max(0, pixels), height * 0.7);
+      // Never treat more than 70% of the view as covered: the Earth needs
+      // somewhere to go. If more is claimed, both edges give way in proportion.
+      const wanted = Math.max(0, top) + Math.max(0, bottom);
+      const scale = wanted > height * 0.7 ? (height * 0.7) / wanted : 1;
+      insetTarget.top = Math.max(0, top) * scale;
+      insetTarget.bottom = Math.max(0, bottom) * scale;
       if (!animate) {
-        insetShown = insetTarget;
+        insetShown.top = insetTarget.top;
+        insetShown.bottom = insetTarget.bottom;
         applyProjection();
       }
     },

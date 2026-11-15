@@ -50,7 +50,7 @@ describe('parseOmmCsv on the published verification set', () => {
     expect(parsed.elementSets[0]).toEqual({
       noradId: 5,
       name: 'VERIFICATION 00005',
-      objectId: '58002B',
+      objectId: '1958-002B',
       // 2000-06-27 is 11 135 days after 1970-01-01.
       epochDay: 11135,
       // 18:50:19.733568 into the day.

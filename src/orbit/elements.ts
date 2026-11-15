@@ -78,10 +78,14 @@ export const GEO_MEAN_MOTION_RANGE: readonly [number, number] = [0.99, 1.01];
  *    includes inclined geosynchronous orbits, not only geostationary ones.
  * 4. MEO otherwise.
  *
- * The eccentricity and mean-motion thresholds follow the regime definitions
- * used by Space-Track.org's catalog queries. Those thresholds, and the IADC
- * figure, were written from memory and have not yet been checked against
- * the source documents; see VALIDATION.md, entry V3.7.
+ * Where the numbers come from. The 2,000 km figure is in the IADC Space
+ * Debris Mitigation Guidelines (section 3.3, "Region A"), confirmed on
+ * 2026-11-15 from a NASA paper that quotes it (NTRS 20100007939).
+ * Space-Track.org's catalog pages define LEO with "eccentricity < 0.25",
+ * confirmed second-hand on the same day through an encyclopedia article
+ * that cites them; using 0.25 as the start of HEO follows from that. The
+ * 0.99 to 1.01 range for GEO is recalled from the same Space-Track
+ * definitions and has not been checked against them. See VALIDATION.md, V3.7.
  *
  * @param eccentricity            dimensionless
  * @param apogeeAltitudeKm        highest point of the orbit above the Earth's equatorial radius
