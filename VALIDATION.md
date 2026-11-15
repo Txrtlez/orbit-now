@@ -806,3 +806,13 @@ that).
 
 **Not done:** any real phone or tablet; Firefox, Safari and Edge; a screen reader; the browser's
 real permission prompt for location (the tests grant or withhold permission directly).
+
+**The deployed site.** GitHub Actions: CI runs 43758976976 and 43759793769 on the branch passed;
+Deploy run 43760184090 on `main` passed. The live page was then opened in Chromium 156 on the
+owner's PC at 21:10 UTC and reported build `62b8325` with 19,572 objects. Given Atlanta as typed
+coordinates (33.749, −84.388), the panel listed six visible passes of the two stations in five
+days, the first two being the ISS at 6:47:19 PM to 6:48:02 PM EST on 15 November (10° NNW) and at
+5:57:36 PM to 6:01:37 PM on 16 November (15° NNW): the same seconds as the reference rows in V4.2
+(23:47:19 to 23:48:03, and 22:57:36 to 23:01:37 UTC), apart from one second on one end time. The
+test location was erased from the browser afterwards. The option for other bright satellites was
+absent, as expected before the group's first download (V4.4).
