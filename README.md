@@ -5,20 +5,22 @@ debris-cascade ("Kessler syndrome") simulator.
 
 **Live site:** <https://txrtlez.github.io/orbit-now/>
 
-**Status: Phases 1 and 2 are done; the core of Phase 3 is done.** The site shows the Earth with its
-real day and night sides and about 19,500 objects moving in real time. Selecting an object, search,
-filters and orbit paths are not built yet. The data covers active satellites and three debris
-clouds, not every tracked object (see "Data source").
+**Status: Phases 1 to 3 are done.** The site shows the Earth with its real day and night sides and
+about 19,500 objects moving in real time. Click or tap an object to see what it is, where it is
+and the path of its orbit; search by name or number; filter by constellation, orbit, launch year
+and (once the first download has arrived) kind and owner. The data covers active satellites and
+three debris clouds, not every tracked object (see "Data source"). Three things about Phase 3 are
+still unproven and are listed first under "Known issues".
 
-| Phase | Scope                                                                     | State                                                                                                                                               |
-| ----- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1     | Repository structure, tooling, CI, deploy pipeline, empty app             | Done                                                                                                                                                |
-| 2     | Scheduled OMM data pipeline; SGP4 validated against published vectors     | Done, with one documented exception in the SGP4 gate                                                                                                |
-| 3     | Earth rendering, all objects moving, picking, info panel, filters, search | Core done (Earth, sunlight, all objects moving); frame rate unmeasured on real devices; picking, panel, orbit paths, filters and search not started |
-| 4     | Overhead passes with visibility; time controls                            | Not started                                                                                                                                         |
-| 5     | Historical debris layers; growth-of-orbit chart                           | Not started                                                                                                                                         |
-| 6     | "What if?" mode: breakup model, propagation, reentry, cascade statistics  | Not started                                                                                                                                         |
-| 7     | Guided tour, shareable links, About page, accessibility, launch           | Not started                                                                                                                                         |
+| Phase | Scope                                                                     | State                                                                                                                                             |
+| ----- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | Repository structure, tooling, CI, deploy pipeline, empty app             | Done                                                                                                                                              |
+| 2     | Scheduled OMM data pipeline; SGP4 validated against published vectors     | Done, with one documented exception in the SGP4 gate                                                                                              |
+| 3     | Earth rendering, all objects moving, picking, info panel, filters, search | Done. Frame rate measured by the owner at 240 fps (PC) and 60 fps (phone); the satellite-catalog download has not yet run against the real server |
+| 4     | Overhead passes with visibility; time controls                            | Not started                                                                                                                                       |
+| 5     | Historical debris layers; growth-of-orbit chart                           | Not started                                                                                                                                       |
+| 6     | "What if?" mode: breakup model, propagation, reentry, cascade statistics  | Not started                                                                                                                                       |
+| 7     | Guided tour, shareable links, About page, accessibility, launch           | Not started                                                                                                                                       |
 
 ## Run it
 
@@ -76,22 +78,32 @@ GitHub Pages on a free account requires the repository to be public.
 ## Reproduce the validations
 
 Every comparison against an outside reference is recorded in [`VALIDATION.md`](./VALIDATION.md),
-with numbers, dates and the command that reproduces it. The four launch gates (SGP4 test vectors,
-ISS passes, breakup-model curves, J2 nodal precession) belong to later phases and are listed there
-as not yet run.
+with numbers, dates and the command that reproduces it. Of the four launch gates, the SGP4 test
+vectors pass with one documented exception; the other three (ISS passes, breakup-model curves, J2
+nodal precession) belong to later phases and are listed there as not yet run.
+
+The validation tests assert limits; the numbers actually measured are written to a file when asked:
+
+```bash
+VALIDATION_LOG=/tmp/measurements.txt npm run test -- tests/validation
+```
 
 ## Repository layout
 
 ```
-index.html                 Page shell: canvas, mode tabs, panels
+index.html                 Page shell: canvas, mode tabs, search field, cards
 src/
-  main.ts                  Start-up: wires the tabs and the globe together
+  main.ts                  Start-up: wires the globe, the data and the interface together
   styles.css               All styling
-  app/                     Interface code that is not 3D (tabs, build stamp)
-  geo/                     Earth geometry: WGS 84 constants, coordinate conversions
-  orbit/                   Time and frames, SGP4 for many objects, the background worker
-  render/                  three.js scene: Earth, sunlight, the object layer, camera framing
-  catalog/                 The catalog file format (shared with the pipeline) and its loader
+  app/                     Interface code that is not 3D: selection, the object card, search,
+                           filters, number formatting, tabs
+  geo/                     Earth geometry: WGS 84 constants, coordinate conversions both ways
+  orbit/                   Time and frames, SGP4 for many objects, orbit regimes and orbit-path
+                           sampling, the background worker
+  render/                  three.js scene: Earth, sunlight, the object layer, the orbit line and
+                           selection ring, picking, camera framing
+  catalog/                 The catalog file format (shared with the pipeline), its loader, object
+                           categories, satellite-catalog code tables, the per-object index
   modes/whatif/            "What if?" mode, loaded on demand as a separate file
 pipeline/                  Data pipeline: download, check, merge, publish (runs in GitHub Actions)
 tests/validation/          Launch-gate validations against published reference data
@@ -149,15 +161,18 @@ The comparison is therefore "at least several times larger", not "exactly ten ti
 Sun's position and the Earth shader all have to be written and tested in this repository instead of
 being inherited. That work is scheduled for Phases 2 to 4 and each piece gets a validation entry.
 
-**Not yet demonstrated.** The decisive question in the brief is frame rate with 30 000+ points on a
-mid-range phone. That has not been measured, because Phase 1 draws no points. It will be measured
-in Phase 3 on real hardware. If three.js misses the target there, this decision is reopened.
+**Measured since (2026-11-15).** The decisive question in the brief was frame rate with tens of
+thousands of points on a phone. With 19,559 objects the owner measured 240 fps on a desktop PC and
+60 fps on a phone (VALIDATION.md, V3.5), against targets of 60 and 30. The decision stands. Two
+cautions: the catalog holds about 19,500 objects, not the 30,000+ the brief names, and the phone's
+model was not recorded, so "mid-range" is not established.
 
-**WebGPU.** The brief asks for WebGL2 "with WebGPU where available". Phase 1 uses WebGL2 only.
+**WebGPU.** The brief asks for WebGL2 "with WebGPU where available". The site uses WebGL2 only.
 three.js's WebGPU renderer uses a different shader language from its WebGL renderer, so supporting
-both means writing and testing every custom shader twice. That is deferred until Phase 3 shows
-whether WebGL2 alone meets the frame-rate targets. This is a deviation from the brief's default and
-is flagged as such.
+both means writing and testing every custom shader twice. WebGL2 alone meets the frame-rate targets
+with a wide margin, so that cost buys nothing at present and WebGPU is not planned. This is a
+deviation from the brief's default and is flagged as such; it would be revisited if a much larger
+catalog (see "Data source") changed the measurements.
 
 ### 2. Relative base path, and no path-based routing
 
@@ -191,8 +206,9 @@ exist in the built output, so that is what is tested.
 ### 6. An enforced size budget
 
 `npm run size` fails the build if the HTML, JavaScript and CSS needed for first paint exceed 300 kB
-after gzip. The number is a starting point chosen to leave headroom above today's 138.0 kB, and
-should be tightened or justified again when the catalog data arrives in Phase 2.
+after gzip. The number was chosen in Phase 1 to leave headroom above the 138.0 kB of the time. At
+the end of Phase 3 the figure is 167.2 kB; the catalog (about 0.7 MB) is fetched after the page has
+started and is not counted.
 
 ### 7. System fonts
 
@@ -249,6 +265,69 @@ under a second per 5 second cycle and adds nothing to the download.
 Workers are built as JavaScript modules (`worker.format: 'es'`). Every current browser supports
 them; very old ones (Safari before 15, Firefox before 114) do not.
 
+### 14. Picking is arithmetic on the main thread, not a read-back from the graphics card
+
+To find the object under the pointer, the page recomputes every object's position with the same
+formula the vertex shader uses, projects each to the screen, and takes the nearest within a few
+pixels that the Earth does not hide (`src/render/picking.ts`). The usual alternative, drawing each
+object in a unique colour to a hidden image and reading the pixel back, was rejected: with 20,000
+objects the arithmetic takes well under a millisecond, it behaves identically on every device, it
+needs no second set of shaders, and it can be unit-tested without a browser. The pick radius
+depends on the pointer: 9 pixels for a mouse, 22 for a fingertip.
+
+### 15. One byte per object decides how it is drawn
+
+Filtering and highlighting never touch the position data. Each object has a display state (hidden,
+dimmed, normal, emphasised) in one array of bytes that is rewritten when a filter or the selection
+changes. The objects are drawn in two passes over the same buffers, dimmed ones first, so that a
+dimmed dot can never cover a bright one whatever the order of the catalog. The cost is a second
+draw call. Objects related to the selection are shown by dimming everything else, not by enlarging
+them: enlarging 11,000 Starlink satellites turned the picture into a solid mass.
+
+### 16. The orbit line: SGP4 positions, evenly spaced around the ellipse
+
+The path of a selected object is one revolution of SGP4 positions computed in the background
+thread, centred on the present so that the small gap where an orbit fails to close falls on the
+far side from the object. The sample times are spaced evenly in eccentric anomaly, not in time,
+which puts points where an eccentric orbit curves most (VALIDATION.md, V3.6). It is drawn with
+three.js's wide-line add-on, because plain WebGL lines are always one device pixel wide, a hairline
+on a phone. The initial download grew by about 14 kB when selection was added; how much of that
+is the add-on was not measured separately.
+
+The line is the orbit in the inertial frame, which is why it is a closed loop (decision 11). It is
+not the ground track, and the Earth turns underneath it.
+
+### 17. Constellations are recognised by name
+
+Membership of Starlink, OneWeb, GPS and the rest is decided from the published object name
+(`src/catalog/categories.ts`). CelesTrak does maintain a group for each, and downloading those
+would be authoritative, but every one is a subset of the `active` group already downloaded, and
+CelesTrak asks users to download only what they need. The price is that the rule is a heuristic:
+see VALIDATION.md, V3.7, for what it matched and what it cannot know. Membership of the three
+debris clouds is not a heuristic; it comes from which CelesTrak group listed the object.
+
+### 18. Cards, and sheets on a phone
+
+The interface is a set of cards floating over the globe. On a wide screen the overview sits at the
+bottom left and the selected object's details at the right. On a narrow one both become sheets
+across the bottom, at most 46% of the screen high, and the object's details replace the overview
+while something is selected. The globe is told how much of the screen the search field and the
+open sheet cover and re-centres the Earth in what is left, by shifting the camera's window, so a
+sheet never hides half the planet. The overview starts folded on a phone.
+
+### 19. Satellite-catalog fields ride in the same file, as an optional section
+
+Kind, status, owner and launch date come from a different CelesTrak data set (SATCAT) on a
+different schedule. They are stored in the catalog file as an optional `metadata` section, one
+entry per object. The file's version number was not raised: a reader that predates the section
+ignores it, and the app works with or without it, which matters because the deployed site always
+has to cope with whatever the last data run produced. Putting the fields in a second file was
+considered and rejected as one more request and one more way for two files to disagree.
+
+SATCAT is requested group by group (`records.php?GROUP=...`), not as CelesTrak's complete catalog
+file: the complete file is several times larger and consists mostly of objects that decayed long
+ago, and the usage policy asks for only the data that is needed.
+
 ## Data source
 
 **What the site shows.** Orbital data comes from [CelesTrak](https://celestrak.org), which
@@ -262,6 +341,11 @@ groups are used:
 | `cosmos-2251-debris` | 581                   |
 | `iridium-33-debris`  | 109                   |
 | **Total**            | **19,559**            |
+
+**What each object is.** Kind (payload, rocket body, debris), operational status, owner and launch
+date come from CelesTrak's satellite catalog, SATCAT, requested once a day for the same four
+groups. Until the first such download has happened the site derives the launch year from the
+international designator and shows nothing for the rest.
 
 **What it does not show.** This is not the full public catalog. The brief asked for every publicly
 tracked object, and that turned out not to be available from CelesTrak in one query: its GP data is
@@ -282,17 +366,23 @@ format records which source each object came from.
 `.github/workflows/data.yml` runs at 03:17, 11:17 and 19:17 UTC. Each run:
 
 1. reads the currently published data from the `data` branch;
-2. requests each group once from CelesTrak as OMM CSV, smallest group first;
-3. checks every row (see `pipeline/omm.ts` for the rules) and the download as a whole;
-4. merges what passed into the catalog, keeping the previous data for any group that was not
+2. requests each group's orbital elements once from CelesTrak as OMM CSV, smallest group first;
+3. if at least 22 hours have passed since it last asked, requests the satellite-catalog records
+   for the same groups, also as CSV;
+4. checks every row (see `pipeline/omm.ts` and `pipeline/satcat.ts` for the rules) and each
+   download as a whole;
+5. merges what passed into the catalog, keeping the previous data for anything that was not
    refreshed;
-5. writes `catalog.json.gz` and `status.json` to the `data` branch and redeploys the site.
+6. writes `catalog.json.gz` and `status.json` to the `data` branch and redeploys the site.
 
 **Rules it follows.** CelesTrak's [usage policy](http://celestrak.org/usage-policy.php) allows one
 download of each data set per update (every 2 hours for GP data) and tells automated clients to
-stop on any response other than HTTP 200. Accordingly the pipeline never requests a group it
-requested less than 2 hours 5 minutes earlier, never retries, never follows redirects, and stops
-the run at the first non-200 response. The 2-hour rule is enforced in code, so pressing "Run
+stop on any response other than HTTP 200. The satellite catalog is updated by hand once or twice
+a day, with the same once-per-update rule. Accordingly the pipeline never requests orbital
+elements it requested less than 2 hours 5 minutes earlier or catalog records it requested less
+than 22 hours earlier, never retries, never follows redirects, and stops the run at the first
+non-200 response. Orbital elements are requested first, so a refusal of the catalog records cannot
+hold them back. The 2-hour rule is enforced in code, so pressing "Run
 workflow" by hand is safe: a run that comes too soon makes no requests at all.
 
 **Do not run `npm run data:update` on your own computer** unless you mean to. It would spend your
@@ -311,30 +401,54 @@ and why.
 
 ## Known issues
 
-- **The schedule itself is unproven.** The data workflow has run once, started by hand, and
-  succeeded. Its first scheduled run had not happened when this was written. To my knowledge GitHub
-  also pauses scheduled workflows in repositories with no activity for 60 days; if the data stops
-  updating after a long quiet period, check the Actions tab for a prompt to re-enable it.
-- **The refusal path has only been exercised in tests.** CelesTrak answered all four first requests
-  with HTTP 200. How the pipeline behaves when CelesTrak refuses is covered by tests with a
+Unproven parts of Phase 3, most important first:
+
+- **The satellite-catalog download has never run against CelesTrak.** The build environment is not
+  allowed to contact CelesTrak, so the request address and the column names come from its
+  documentation and the code was tested with a substitute network only (VALIDATION.md, V3.9). The
+  first scheduled data run after this change is the real test. If CelesTrak refuses or the reply is
+  not what the code expects, the run is marked failed and says why, the orbital data is still
+  published, and the site simply shows no kind, owner or launch date.
+- **Frame rate has not been measured since the interaction features were added.** The 240 fps and
+  60 fps figures were taken on the build before selection, search and filters existed. Add `?stats`
+  to the page address to measure again; the phone's model would make the figure meaningful.
+- **The owner names were transcribed by an automated page reader** and not checked row by row
+  against CelesTrak's list (VALIDATION.md, V3.10).
+
+Limits of what is built:
+
+- **Constellation membership is a guess from the object's name** (decision 17).
+- **On a phone, the filters cannot be reached while an object is selected,** because its details
+  take the overview's place. Close the details first.
+- **The camera does not follow a selected object.** It turns to face the object once; a satellite
+  in low orbit then drifts out of the middle of the view within a few minutes.
+- **The orbit line is the orbit, not the ground track** (decision 16).
+- **Objects can only be picked with a pointer or through the search field.** There is no way to
+  move from object to object with the keyboard, and the globe cannot be rotated from the keyboard.
+  Keyboard camera control is part of Phase 7.
+- **Names appear on hover only with a mouse.** Touch has no hover; tap the object instead.
+- **Orbit regime boundaries are a convention,** and one of the three thresholds is from memory
+  (VALIDATION.md, V3.7).
+
+Carried over:
+
+- **The refusal path has only been exercised in tests.** CelesTrak has answered every real request
+  with HTTP 200 so far. How the pipeline behaves when CelesTrak refuses is covered by tests with a
   substitute network, but has not yet happened for real.
 - **The live catalog has not been compared row by row with the raw downloads.** The raw files are
   kept as a workflow artifact for 3 days, but the build environment could not download them.
-- **Frame rate is unmeasured on real hardware.** Add `?stats` to the page address to see a readout.
-- **On a phone, opening "About this data" makes the panel cover part of the globe.** The layout is
-  reworked in Phase 3 when the panel gains real content.
-- **Tested in one browser engine.** Chromium only: headless with software rendering in CI, and one
-  manual check of the live site in a Chromium-based browser on a desktop GPU. Firefox and Safari are
-  untested.
-- **No real-device performance numbers.** Nothing here has been run on a physical phone.
+- **Scheduled runs can start late.** The first scheduled data run (2026-11-15) succeeded but
+  started at 04:01 UTC, 44 minutes after its scheduled 03:17. To my knowledge GitHub also pauses
+  scheduled workflows in repositories with no activity for 60 days; if the data stops updating
+  after a long quiet period, check the Actions tab for a prompt to re-enable it.
+- **Tested in one browser engine.** Chromium only: headless with software rendering in CI and in
+  the build environment. Firefox and Safari are untested, and no screen reader has been used.
 - **Development-only security advisory.** `npm audit` reports a moderate-severity denial-of-service
   advisory (GHSA-g3hv-75wg-m249) in `minimatch`, a dependency of typescript-eslint. It affects the
   linter on a developer's machine and in CI only. It is not part of the code shipped to visitors.
   No fixed typescript-eslint release existed on 2026-11-14.
 - **No licence file.** Until one is added, the code is "all rights reserved" by default even in a
   public repository. Choosing a licence is the owner's decision.
-- **The globe cannot be rotated from the keyboard.** The mode tabs are fully keyboard-operable; the
-  3D camera is mouse and touch only for now. Keyboard camera control is part of Phase 7.
 
 ## Credits
 
@@ -344,7 +458,7 @@ and why.
 - SGP4 verification data: Vallado, Crawford, Hujsak and Kelso, "Revisiting Spacetrack Report #3"
   (AIAA 2006-6753), obtained through the `sgp4` Python package by Brandon Rhodes (MIT licence).
 
-- Orbital data: [CelesTrak](https://celestrak.org) (Dr. T.S. Kelso), from general-perturbations
-  data published by the US Space Force's 18th Space Defense Squadron.
+- Orbital data and satellite catalog: [CelesTrak](https://celestrak.org) (Dr. T.S. Kelso), from
+  general-perturbations data published by the US Space Force's 18th Space Defense Squadron.
 - Earth imagery: NASA Earth Observatory, Blue Marble Next Generation (2004) and Black Marble (2012).
   Provenance and the one change made are in `public/textures/README.md`.

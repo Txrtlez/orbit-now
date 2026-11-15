@@ -304,7 +304,260 @@ because SGP4 stops producing valid states for them within one revolution (cases 
   after navigation on the desktop profile and 3.2 s on the Pixel 7 profile. A zoomed-out screenshot
   shows the geostationary ring as a thin circle in the equatorial plane at the expected distance of
   about 6.6 Earth radii, which is a visual confirmation that orbits and Earth share one frame.
-- **Frame rate: not yet measured on real hardware.** The software renderer managed about 9 frames
-  per second, which says nothing about a phone or a laptop with a GPU. The page shows a frame-rate
-  readout when `?stats` is added to its address, for measuring on real devices. Until those numbers
-  exist, the brief's targets (60 fps laptop, 30 fps mid-range phone) are unverified.
+- **Frame rate in the software renderer:** about 9 frames per second, which says nothing about a
+  phone or a laptop with a GPU.
+
+**Frame rate on real hardware (added 2026-11-15).** Measured by the project owner on the live site
+(build 34f69e9, 19,559 objects, readout enabled with `?stats`):
+
+| Device     | Average frame rate reported | Target in the brief |
+| ---------- | --------------------------- | ------------------- |
+| Desktop PC | 240 fps                     | 60 fps on a laptop  |
+| Phone      | 60 fps                      | 30 fps on a phone   |
+
+Both targets are met with a wide margin, which settles the renderer decision in the README
+(three.js with WebGL2). What these two numbers do not establish:
+
+- The device models were not recorded, so "mid-range phone" in the brief is not shown to be
+  satisfied: the phone may be a fast one. The desktop is a PC, not a laptop.
+- 240 and 60 are common display refresh rates. A browser does not draw faster than the display
+  refreshes, so each figure is probably a ceiling set by the screen and not the renderer's limit.
+- Only the average was reported, not the "slowest 1%" figure that reveals stutter.
+- The measurement predates the interaction features added afterwards (V3.6 to V3.11). Those draw
+  the objects in two passes instead of one and add a line and a ring for the selected object. That
+  cost is expected to be small but has not been measured on real hardware.
+
+## Phase 3 (interaction)
+
+### V3.6 Orbit figures and the drawn orbit path
+
+- **Date:** 2026-11-15
+- **What is checked:** `summariseOrbits` (the period and the lowest and highest altitude shown for
+  a selected object) and `sampleOrbitPath` (the points of the blue orbit line), both in
+  `src/orbit/propagate.ts`.
+- **Reference:** the Vallado et al. verification set (see V2.1), and Kepler's third law with
+  SGP4's own gravitational parameter (398 600.8 km³/s², read from satellite.js, not typed in).
+- **Reproduce:** `VALIDATION_LOG=/tmp/measurements.txt npm run test -- tests/validation/orbit-summary-and-path`
+  (the measured values are written to that file).
+
+| Check                                                                                        | Objects         | Measured         | Limit asserted        |
+| -------------------------------------------------------------------------------------------- | --------------- | ---------------- | --------------------- |
+| Period and semi-major axis against Kepler's third law: largest relative difference           | 30              | 7.5e-4           | between 1e-4 and 1e-3 |
+| Eccentricity implied by the two altitudes against the published eccentricity                 | 30              | agrees           | 5 decimal places      |
+| Reference distances within one day of epoch lying outside the stated lowest to highest range | 25 (372 states) | at most 10.2 km  | 15 km                 |
+| Middle point of the drawn path against the object's own position at that instant             | 25              | 0 km (identical) | 0.05 km               |
+| Gap between the two ends of the drawn path, as a fraction of the orbit's semi-major axis     | 25              | at most 1.7%     | 2%                    |
+| Longest straight segment of the path (256 segments), same fraction                           | 25              | 3.4%             | 4%                    |
+
+How to read these numbers. The first row is not expected to be zero: SGP4 converts the published
+mean motion to a different convention before using it, a correction of the order of the Earth's
+oblateness coefficient (about 0.001), and the figures shown in the app are SGP4's own. The third
+row shows that "lowest" and "highest" describe the average orbit and are not hard limits: real
+distances stray about 10 km outside them, mostly because the Earth is not a sphere. The app says
+so in the tooltip for that figure. The fifth row is the reason the drawn orbit does not quite
+close: an orbit turns slowly, so after one revolution the object is not exactly where it started.
+
+**Objects left out, and why.** The verification set was built to stress SGP4, and six of its
+orbits are ones that "period" and "highest altitude" cannot sensibly describe: one is deliberately
+unphysical (33333, eccentricity 0.995 with its low point underground; left out of every row), four
+are in the act of re-entering (22312, 28350, 28872, 29141), and one has eccentricity 0.97 with a
+far point beyond the Moon (23333). For 28872 the path function is checked separately to return
+nothing, instead of part of a path, when SGP4 cannot cover the whole revolution.
+
+**Stated simplification.** The sample times for the path assume the mean anomaly advances at a
+constant rate. That only affects how evenly the points are spaced (hence 3.4% where exact spacing
+would give 2.45%); every point is still an SGP4 position.
+
+**Result: pass.**
+
+### V3.7 Orbit regimes and object categories on the real catalog
+
+- **Date:** 2026-11-15
+- **What is checked:** `classifyRegime` (`src/orbit/elements.ts`) and `categoryOf`
+  (`src/catalog/categories.ts`), applied to the published catalog generated at
+  2026-11-15T04:02:18Z (19,560 objects), read from the repository's `data` branch.
+- **Reproduce:** unit tests with `npm run test -- src/orbit/elements src/catalog`. The counts below
+  come from running the same code over the published catalog; they change with every data update.
+
+| Regime (this site's convention)               | Objects |
+| --------------------------------------------- | ------- |
+| LEO: highest point below 2,000 km             | 18,740  |
+| MEO: everything not in the other three        | 204     |
+| GEO: 0.99 to 1.01 revolutions per day         | 572     |
+| HEO: eccentricity 0.25 or more (tested first) | 44      |
+
+| Category              | How recognised                   | Objects |
+| --------------------- | -------------------------------- | ------- |
+| Starlink              | name begins `STARLINK`           | 11,188  |
+| OneWeb                | name begins `ONEWEB`             | 651     |
+| Kuiper                | name begins `KUIPER`             | 391     |
+| Qianfan               | name begins `QIANFAN`            | 275     |
+| Hulianwang            | name begins `HULIANWANG`         | 261     |
+| GPS                   | name begins `NAVSTAR `           | 40      |
+| GLONASS               | name contains `[GLONASS`         | 27      |
+| Galileo               | name contains `(GALILEO`         | 32      |
+| BeiDou                | name begins `BEIDOU`             | 56      |
+| QZSS                  | name begins `QZS-`               | 6       |
+| NavIC                 | name begins or contains `IRNSS-` | 9       |
+| Space station modules | name begins `ISS (` or `CSS (`   | 8       |
+| Fengyun-1C debris     | member of CelesTrak's group      | 1,989   |
+| Cosmos 2251 debris    | member of CelesTrak's group      | 581     |
+| Iridium 33 debris     | member of CelesTrak's group      | 109     |
+| Everything else       |                                  | 3,937   |
+
+**Where the regime boundaries come from, and how sure each is.**
+
+- 2,000 km for LEO: the IADC Space Debris Mitigation Guidelines, section 3.3, "Region A". Confirmed
+  on 2026-11-15 from a NASA paper that quotes the guidelines (Johnson, "Medium Earth Orbits: Is
+  There a Need for a Third Protected Region?", NTRS 20100007939). The guidelines themselves were
+  not opened.
+- Eccentricity 0.25: Space-Track.org's catalog pages define LEO with "Eccentricity < 0.25".
+  Confirmed second-hand, through an encyclopedia article that cites that page. Using 0.25 as the
+  start of HEO follows from it.
+- 0.99 to 1.01 revolutions per day for GEO: **from memory** of the same Space-Track definitions.
+  Not checked.
+
+Whatever their source, these are a convention: agencies draw the lines differently, and the app
+says so wherever it shows a regime.
+
+**Limits of the categories.** Membership by name is a simplification. It was checked only by
+reading the matched names in this one catalog (for example, that `GSAT-8`, an Indian satellite, is
+not counted as Galileo, and that `SWISSCUBE` is not counted as a space station). It cannot notice a
+satellite published under an unexpected name, and it says nothing about whether a satellite is
+working: 40 objects named NAVSTAR are more than the GPS constellation's working satellites. The
+eight "space station modules" are separate catalog entries for parts of two stations (five for the
+ISS, three for the Chinese station), not eight stations.
+
+**Result: recorded, not validated against an outside count.** No independent list of constellation
+members was compared.
+
+### V3.8 Picking, ground position and the live readout
+
+- **Date:** 2026-11-15
+- **What is checked:** `pickObject`, `projectToScreen` and `segmentHitsSphere`
+  (`src/render/picking.ts`); `ecefToGeodetic` (`src/geo/geodetic.ts`); `liveStateFromScene`
+  (`src/app/liveState.ts`).
+- **Reference:** three.js's own projection for the screen position; otherwise internal
+  mathematical consistency. No outside numerical reference was used.
+- **Reproduce:** `npm run test -- src/render/picking src/geo/geodetic src/app/liveState`
+
+| Check                                                                                                                    | Tolerance            | Result |
+| ------------------------------------------------------------------------------------------------------------------------ | -------------------- | ------ |
+| Screen position agrees with three.js's `Vector3.project` at four points                                                  | 1e-9 pixel           | Pass   |
+| A point behind the Earth is reported hidden; one beside it visible; the grazing line is told apart at ±0.1%              | exact                | Pass   |
+| Nearest object to the pointer wins; of two that coincide, the one nearer the camera                                      | exact                | Pass   |
+| Hidden, filtered-out, unplaced and behind-the-camera objects cannot be picked                                            | exact                | Pass   |
+| Earth-fixed to latitude, longitude, height and back: 7 heights (0 to 100,000 km) × 25 latitudes × 12 longitudes          | 1e-9 degree, 1e-9 km | Pass   |
+| Height is measured along the ellipsoid's normal (a point 7,000 km from the centre at 45° is between 622 and 643 km high) | bounds               | Pass   |
+| Scene coordinates to latitude, longitude, height: six points from the surface to 35,786 km                               | 1e-8 degree, 1e-6 km | Pass   |
+| A point fixed in space drifts west over the ground at the Earth's rotation rate (15.04° per hour)                        | 0.01 degree          | Pass   |
+
+**What this does and does not show.** It shows that the chain from an object's position to the
+altitude and ground position on screen is self-consistent and that picking agrees with what is
+drawn. It does not show that the altitude displayed for a real satellite is right: that depends
+on SGP4 (validated in V2.1), on the frame rotation (V3.1, with its caveat) and on the age of the
+element set. Comparing a displayed position with an independent tracker is part of launch gate 2
+in Phase 4.
+
+**Plausibility check on one object (not a validation).** With the catalog of 2026-11-15T04:02Z the
+app describes catalog number 25544, "ISS (ZARYA)", as: period 93.0 min, inclination 51.63°, lowest
+and highest points 414 km and 424 km, and a live altitude of 431 km while over 40° S. Those are in
+the range generally quoted for the International Space Station; the general figures are from
+memory. The live altitude exceeding the "highest" figure is the effect described in V3.6: the
+Earth's surface is closer to its centre at high latitudes, so the height above it is greater there.
+
+**Result: pass, with the stated limit.**
+
+### V3.9 Satellite catalog (SATCAT) records in the pipeline
+
+- **Date:** 2026-11-15
+- **What is checked:** the reader for SATCAT CSV (`pipeline/satcat.ts`), its merging into the
+  catalog (`pipeline/merge.ts`) and the rules for requesting it (`pipeline/update.ts`).
+- **Reproduce:** `npm run test -- tests/pipeline src/catalog/format`
+
+**Not yet run against CelesTrak.** The build environment is not permitted to contact CelesTrak, so
+everything below was done with a substitute network. The request address
+(`https://celestrak.org/satcat/records.php?GROUP=<group>&FORMAT=CSV`) and the column names were
+taken from CelesTrak's documentation and have not been tried. The first scheduled run after this
+change is merged is the real test; this entry must be updated with its outcome.
+
+What was read, and when (all on 2026-11-15, through an automated page reader):
+
+| Page                                             | What was taken from it                                                                                                         |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| <https://celestrak.org/satcat/satcat-format.php> | The CSV field names, the object type codes, the form of the `records.php` query                                                |
+| <https://celestrak.org/usage-policy.php>         | SATCAT is updated "manually, once or twice a day" and may be downloaded once per update; stop on any reply other than HTTP 200 |
+
+What the tests establish (substitute network; the SATCAT rows are invented and labelled as such):
+
+| Behaviour                                                                                          | Result |
+| -------------------------------------------------------------------------------------------------- | ------ |
+| SATCAT is requested after the orbital elements, never before                                       | Pass   |
+| It is requested at most once in 22 hours while elements are requested at every run                 | Pass   |
+| A refused SATCAT request leaves the new orbital elements published and raises an alert             | Pass   |
+| After any refused request earlier in the run, SATCAT is not requested at all                       | Pass   |
+| A reply that is not SATCAT CSV, or has too few rows, is rejected whole and the old fields kept     | Pass   |
+| Rows with an impossible catalog number, malformed code or impossible date are left out and counted | Pass   |
+| Codes never seen before are kept as published, not discarded                                       | Pass   |
+| SATCAT never adds an object to the catalog or removes one                                          | Pass   |
+| Fields survive a write and read of the catalog file, matched to the right objects                  | Pass   |
+| A catalog file without the fields, and a reader that ignores them, both still work                 | Pass   |
+
+**Rehearsal over the real published data.** The pipeline command was run once, outside the test
+suite, over the real catalog and status file from the `data` branch (generated 2026-11-15T04:02Z),
+with a substitute network that answered the four SATCAT requests with invented rows for exactly the
+catalog's objects and with the clock set half an hour after the last real run. Result: the four
+orbital-element sources were skipped as too recent, the four SATCAT addresses were requested in the
+order small to large, the 19,560 records and their sources came out byte-for-byte unchanged, every
+object received fields, no alert was raised, and the compressed file grew from 712,076 to 736,285
+bytes. The built app loaded that file and showed the fields. The file was discarded; nothing
+invented was published. The size figure is only indicative, since real fields will compress
+differently.
+
+**Result: pass under test conditions; unproven against the real server.**
+
+### V3.10 Code tables for the satellite catalog
+
+- **Date:** 2026-11-15
+- **What is checked:** the tables in `src/catalog/satcatCodes.ts` that turn SATCAT codes into words.
+- **Sources:** object types from <https://celestrak.org/satcat/satcat-format.php>; operational
+  statuses from <https://celestrak.org/satcat/status.php> (page dated 2026 Oct 12); 132 owner codes
+  from <https://celestrak.org/satcat/sources.php> (page dated 2026 Jan 09).
+- **How they were obtained:** each page was read on 2026-11-15 by an automated page reader that
+  returned the table as text, and the text was copied into the code. **The owner table has not been
+  compared row by row with the page by a person.** A reader of that kind can drop or alter a row
+  without any sign of it.
+- **Safeguard in the code:** a code missing from a table is displayed as the bare code. A wrong
+  name for a code that is present would not be caught.
+- **Result: not validated.** Open item: check the 132 owners against CelesTrak's page.
+
+### V3.11 Build and browser checks at the end of Phase 3
+
+- **Date:** 2026-11-15
+- **Environment:** as in V1.4 (Node.js 22.23.4, headless Chrome with software rendering). No
+  physical device.
+
+| Check                                             | Result                                          |
+| ------------------------------------------------- | ----------------------------------------------- |
+| Prettier, ESLint (strict, type-aware), TypeScript | Pass, 0 findings                                |
+| Unit and validation tests                         | 287 of 287 pass                                 |
+| Browser tests, desktop and Pixel 7 emulation      | 46 of 46 pass                                   |
+| Initial download (HTML + JS + CSS, gzip level 9)  | 167.2 kB against a 300 kB budget (was 145.5 kB) |
+| GitHub Actions, branch `phase-3-interaction`      | Runs 43689021427 and 43690846564: pass          |
+
+The browser tests cover: selecting an object by click and by tap, and clearing the selection three
+ways; that a drag does not select; search by name and by number with the keyboard and by pointer,
+and that the camera turns to the chosen object; filters by regime, launch year, kind and owner;
+and that the page works with and without SATCAT fields. They use the SGP4 verification element
+sets with their epochs moved to the present (and, where needed, invented SATCAT fields), which is a
+test fixture and not real data.
+
+**Looked at, not tested.** The built page was also opened with the real catalog of
+2026-11-15T04:02Z in headless Chrome at 1280 × 800 and at Pixel 7 size, and screenshots of
+selection, search and filters were inspected by eye. With the rehearsal file from V3.9 (the same
+19,560 objects plus invented fields) all objects were on the globe 1.9 s after navigation (desktop
+size, local server).
+
+**Not done:** any real phone or tablet; Firefox, Safari and Edge; a screen reader. The combobox
+and the filter buttons follow the WAI-ARIA patterns and are operated by keyboard in the tests, but
+no assistive technology was actually used.
