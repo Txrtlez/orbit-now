@@ -208,3 +208,103 @@ CelesTrak, which so far is covered only by tests with a substitute network.
   and CSS: 139.8 kB against the 300 kB budget. The catalog is a further 723.6 kB, fetched after the
   page has started, and is not counted in that budget. Whether the total meets the "under 3 seconds"
   target on a typical phone connection has not been measured.
+
+## Phase 3 (core)
+
+### V3.1 Sidereal time, the TEME to Earth-fixed rotation, and the Sun's direction
+
+- **Date:** 2026-11-15
+- **What is checked:** `gmstRadians`, `temeToEarthFixed` and `sunDirection` in `src/orbit/time.ts`.
+  The first and third call satellite.js's implementations of the standard formulas.
+- **Reproduce:** `npm run test -- tests/validation/frames-and-sun`
+
+| Check                                                                                   | Reference value                                | Result                       |
+| --------------------------------------------------------------------------------------- | ---------------------------------------------- | ---------------------------- |
+| Greenwich sidereal time, 1992-08-20 12:14:00 UT1                                        | 152.578787810°                                 | Agrees to 5e-10°             |
+| TEME → pseudo-Earth-fixed, 2004-04-06 07:51:28.386009 UTC with UT1 − UTC = −0.4399619 s | (−1033.4750313, 7901.3055856, 6380.3445327) km | Agrees to 0.5 mm             |
+| Sun position vector, 2006-04-02 00:00 UTC                                               | (0.9771945, 0.1924424, 0.0834308) AU           | Direction agrees to 1e-7     |
+| Sun's declination at the 2026 solstices                                                 | ±23.44° (the tilt of the Earth's axis)         | +23.44°, −23.44°             |
+| Sub-solar longitude at 12:00 UTC on 2026-04-15, when the equation of time is zero       | 0°                                             | Within 0.3°                  |
+| Sub-solar longitude at 12:00 UTC on 2026-11-03 and 2026-02-11                           | −4.1° and +3.6°, from the equation of time     | Agrees to the nearest degree |
+
+**Caveat on the first three rows.** Those reference values are worked examples from Vallado's
+"Fundamentals of Astrodynamics and Applications" and from "Revisiting Spacetrack Report #3". They
+were entered from memory, because the books were not available in the build environment. The code
+reproduces all of them to the last digit entered (9, 7 and 7 decimal places), which a misremembered
+number would not do by chance, but they have not been checked against the printed pages. The last
+three rows do not depend on those examples: they rest on the tilt of the Earth's axis and the
+equation of time, and they test the day/night line's position over the ground end to end.
+
+**Stated simplifications, with their size:**
+
+- UTC is used where the formula calls for UT1. The two differ by up to 0.9 s, which is up to
+  13.5 arcseconds of Earth rotation, or 0.42 km on the ground at the equator. In the 2004 example
+  above, where the difference was 0.44 s, the test measures the effect as 0.26 km.
+- Polar motion is ignored (about 10 m).
+- The Sun's direction comes from a low-precision series, stated by its source as good to about
+  0.01°, and is treated as if it were in the TEME frame.
+
+**Result: pass, subject to the caveat above.**
+
+### V3.2 Bulk propagation into 32-bit scene coordinates
+
+- **Date:** 2026-11-15
+- **What is checked:** `propagateAll` in `src/orbit/propagate.ts`, which is what the background
+  thread runs: SGP4 for every object, converted to scene axes and units and stored as 32-bit floats.
+- **Reference:** the Vallado et al. reference states (see V2.1), 596 of them.
+- **Reproduce:** `npm run test -- tests/validation/propagation`
+- **Result: pass.** Every position and velocity agrees with the reference to within 2e-7 of its own
+  magnitude, which is the rounding of a 32-bit float. In distance terms that is about 1 m in low
+  Earth orbit and about 8 m at geostationary height. This rounding is the floor on how precisely any
+  object can be placed on screen.
+
+### V3.3 Interpolation between keyframes
+
+- **Date:** 2026-11-15
+- **What is checked:** that drawing each object on a cubic curve between two SGP4 results 5 seconds
+  apart puts it where SGP4 itself would. Measured over 28 fixture orbits, 12 start times around each
+  orbit, and three points within the interval, with the final value rounded to 32 bits.
+- **Reproduce:** `npm run test -- tests/validation/propagation`
+
+| Keyframe spacing        | Worst error, ordinary orbits | Worst error, the extreme orbit (case 23333) |
+| ----------------------- | ---------------------------- | ------------------------------------------- |
+| 5 s (what the app uses) | 10.3 m                       | 147 m                                       |
+| 60 s                    | 95 m                         | 1,777 m                                     |
+
+**A finding worth recording.** A cubic through two exact states of a smooth orbit would be accurate
+to millimetres over 5 seconds, so errors of metres needed explaining. The cause is that the velocity
+SGP4 reports is not exactly the rate of change of the position SGP4 reports. Differencing SGP4's
+positions shows a mismatch of roughly 1 to 16 m/s for ordinary orbits. The interpolation inherits
+it, which is why the error grows in proportion to the spacing and not with its fourth power. Case
+23333 (eccentricity 0.97, far point beyond the Moon's distance) has a mismatch of about 300 m/s
+near its closest approach; no object in the real catalog resembles it. This explanation fits the
+measurements but was not checked against the SGP4 literature.
+
+**Result: pass for the purpose.** At the 5 second spacing the error for ordinary orbits is about
+10 m, comparable to the 32-bit rounding in V3.2 and thousands of times smaller than SGP4's own
+accuracy with day-old elements (commonly quoted as a kilometre or more). Two orbits were excluded
+because SGP4 stops producing valid states for them within one revolution (cases 28872 and 33333).
+
+### V3.4 Earth imagery placement
+
+- **Date:** 2026-11-15
+- **What is checked:** that three.js places an equirectangular image on its sphere the way the
+  coordinate frames assume: Greenwich at scene +x, 90° E at scene −z, north at scene +y.
+- **Reproduce:** `npm run test -- tests/validation/earth-texture-mapping`
+- **Result: pass** at five points, compared against this project's own geodesy code. That the image
+  files themselves have Greenwich in the centre and north at the top was confirmed by looking at
+  them, not by a test.
+
+### V3.5 All objects on the globe
+
+- **Date:** 2026-11-15
+- **What is checked:** the built page, given the live catalog of 2026-11-15 (19,559 objects), in
+  headless Chromium with software rendering.
+- **Result:** all 19,559 objects were prepared and placed, with 0 propagation failures, about 2.5 s
+  after navigation on the desktop profile and 3.2 s on the Pixel 7 profile. A zoomed-out screenshot
+  shows the geostationary ring as a thin circle in the equatorial plane at the expected distance of
+  about 6.6 Earth radii, which is a visual confirmation that orbits and Earth share one frame.
+- **Frame rate: not yet measured on real hardware.** The software renderer managed about 9 frames
+  per second, which says nothing about a phone or a laptop with a GPU. The page shows a frame-rate
+  readout when `?stats` is added to its address, for measuring on real devices. Until those numbers
+  exist, the brief's targets (60 fps laptop, 30 fps mid-range phone) are unverified.

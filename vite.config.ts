@@ -32,6 +32,12 @@ export default defineConfig({
     __BUILD_COMMIT__: JSON.stringify(resolveCommit()),
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
   },
+  worker: {
+    // Build workers as standard JavaScript modules. Every current browser
+    // supports module workers, and the older single-script format cannot
+    // express some of what the SGP4 library's own files contain.
+    format: 'es',
+  },
   build: {
     target: 'es2022',
     sourcemap: true,

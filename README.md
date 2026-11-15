@@ -5,20 +5,20 @@ debris-cascade ("Kessler syndrome") simulator.
 
 **Live site:** <https://txrtlez.github.io/orbit-now/>
 
-**Status: Phases 1 and 2 of 7 are done.** The site is deployed. It downloads real orbital data three
-times a day and reports what it holds, but it does not draw any satellites yet: the globe is still an
-untextured model with a latitude/longitude grid. The data covers active satellites and three debris
+**Status: Phases 1 and 2 are done; the core of Phase 3 is done.** The site shows the Earth with its
+real day and night sides and about 19,500 objects moving in real time. Selecting an object, search,
+filters and orbit paths are not built yet. The data covers active satellites and three debris
 clouds, not every tracked object (see "Data source").
 
-| Phase | Scope                                                                     | State                                                |
-| ----- | ------------------------------------------------------------------------- | ---------------------------------------------------- |
-| 1     | Repository structure, tooling, CI, deploy pipeline, empty app             | Done                                                 |
-| 2     | Scheduled OMM data pipeline; SGP4 validated against published vectors     | Done, with one documented exception in the SGP4 gate |
-| 3     | Earth rendering, all objects moving, picking, info panel, filters, search | Not started                                          |
-| 4     | Overhead passes with visibility; time controls                            | Not started                                          |
-| 5     | Historical debris layers; growth-of-orbit chart                           | Not started                                          |
-| 6     | "What if?" mode: breakup model, propagation, reentry, cascade statistics  | Not started                                          |
-| 7     | Guided tour, shareable links, About page, accessibility, launch           | Not started                                          |
+| Phase | Scope                                                                     | State                                                                                                                                               |
+| ----- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | Repository structure, tooling, CI, deploy pipeline, empty app             | Done                                                                                                                                                |
+| 2     | Scheduled OMM data pipeline; SGP4 validated against published vectors     | Done, with one documented exception in the SGP4 gate                                                                                                |
+| 3     | Earth rendering, all objects moving, picking, info panel, filters, search | Core done (Earth, sunlight, all objects moving); frame rate unmeasured on real devices; picking, panel, orbit paths, filters and search not started |
+| 4     | Overhead passes with visibility; time controls                            | Not started                                                                                                                                         |
+| 5     | Historical debris layers; growth-of-orbit chart                           | Not started                                                                                                                                         |
+| 6     | "What if?" mode: breakup model, propagation, reentry, cascade statistics  | Not started                                                                                                                                         |
+| 7     | Guided tour, shareable links, About page, accessibility, launch           | Not started                                                                                                                                         |
 
 ## Run it
 
@@ -89,7 +89,8 @@ src/
   styles.css               All styling
   app/                     Interface code that is not 3D (tabs, build stamp)
   geo/                     Earth geometry: WGS 84 constants, coordinate conversions
-  render/                  three.js scene, camera framing, latitude/longitude grid
+  orbit/                   Time and frames, SGP4 for many objects, the background worker
+  render/                  three.js scene: Earth, sunlight, the object layer, camera framing
   catalog/                 The catalog file format (shared with the pipeline) and its loader
   modes/whatif/            "What if?" mode, loaded on demand as a separate file
 pipeline/                  Data pipeline: download, check, merge, publish (runs in GitHub Actions)
@@ -226,6 +227,28 @@ changes only two or three times a day and asks users to download only what they 
 day keeps the typical element set under a day old (measured: median 0.86 days on the first run)
 while using about a quarter of the permitted request rate.
 
+### 11. The scene is inertial; the Earth turns inside it
+
+The 3D scene uses the frame SGP4 reports in (TEME), which does not rotate with the Earth. Objects
+are placed in it directly, and the Earth is turned about its axis by the sidereal angle each frame.
+The alternative, an Earth-fixed scene with every object rotated into it, was rejected because in an
+inertial frame an orbit is a closed ellipse, which is what a viewer expects to see when orbit paths
+are drawn, whereas in an Earth-fixed frame it is an open spiral.
+
+### 12. SGP4 every 5 seconds, interpolation on the GPU in between
+
+A background thread runs SGP4 for every object once every 5 seconds and hands over positions and
+velocities. The vertex shader places each object on the cubic curve through its two most recent
+results. The main thread therefore does almost no per-object work per frame, and all objects are one
+draw call. The measured cost in accuracy is about 10 m (VALIDATION.md, V3.3). satellite.js also
+ships a WebAssembly bulk propagator; it was not used, because the plain JavaScript path takes well
+under a second per 5 second cycle and adds nothing to the download.
+
+### 13. Module workers
+
+Workers are built as JavaScript modules (`worker.format: 'es'`). Every current browser supports
+them; very old ones (Safari before 15, Firefox before 114) do not.
+
 ## Data source
 
 **What the site shows.** Orbital data comes from [CelesTrak](https://celestrak.org), which
@@ -297,6 +320,7 @@ and why.
   substitute network, but has not yet happened for real.
 - **The live catalog has not been compared row by row with the raw downloads.** The raw files are
   kept as a workflow artifact for 3 days, but the build environment could not download them.
+- **Frame rate is unmeasured on real hardware.** Add `?stats` to the page address to see a readout.
 - **On a phone, opening "About this data" makes the panel cover part of the globe.** The layout is
   reworked in Phase 3 when the panel gains real content.
 - **Tested in one browser engine.** Chromium only: headless with software rendering in CI, and one
@@ -322,6 +346,5 @@ and why.
 
 - Orbital data: [CelesTrak](https://celestrak.org) (Dr. T.S. Kelso), from general-perturbations
   data published by the US Space Force's 18th Space Defense Squadron.
-
-No Earth imagery is used yet. Its source will be credited here and in the in-app About page when it
-is added.
+- Earth imagery: NASA Earth Observatory, Blue Marble Next Generation (2004) and Black Marble (2012).
+  Provenance and the one change made are in `public/textures/README.md`.

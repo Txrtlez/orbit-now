@@ -1,4 +1,5 @@
 import type { Catalog } from '../catalog/format';
+import { cssColourOfGroup } from '../render/palette';
 
 /**
  * Describe a length of time in words, rounded down to a whole unit:
@@ -28,6 +29,7 @@ export interface CatalogSummary {
   readonly objectCount: number;
   /** Each source with its object count, largest first. */
   readonly sources: readonly {
+    readonly id: string;
     readonly label: string;
     readonly provider: string;
     readonly objectCount: number;
@@ -48,7 +50,7 @@ export function summariseCatalog(catalog: Catalog): CatalogSummary {
   return {
     objectCount: catalog.records.length,
     sources: catalog.sources
-      .map(({ label, provider, objectCount }) => ({ label, provider, objectCount }))
+      .map(({ id, label, provider, objectCount }) => ({ id, label, provider, objectCount }))
       .sort((a, b) => b.objectCount - a.objectCount),
     oldestFetchMs: allKnown ? Math.min(...fetchTimes) : null,
   };
@@ -87,14 +89,19 @@ export function renderCatalogStatus(
 
   const providers = [...new Set(summary.sources.map((source) => source.provider))].join(', ');
   const headline = paragraph(
-    `Orbital data loaded for ${COUNT_FORMAT.format(summary.objectCount)} objects. This is not the full public catalog, and the objects are not drawn on the globe yet.`,
+    `Showing ${COUNT_FORMAT.format(summary.objectCount)} objects where they are right now. This is not the full public catalog.`,
   );
 
   const list = document.createElement('ul');
   list.className = 'source-list';
   for (const source of summary.sources) {
     const item = document.createElement('li');
-    item.textContent = `${source.label}: ${COUNT_FORMAT.format(source.objectCount)}`;
+    // A dot in the colour this group is drawn with on the globe.
+    const swatch = document.createElement('span');
+    swatch.className = 'swatch';
+    swatch.style.backgroundColor = cssColourOfGroup(source.id);
+    swatch.setAttribute('aria-hidden', 'true');
+    item.append(swatch, `${source.label}: ${COUNT_FORMAT.format(source.objectCount)}`);
     list.append(item);
   }
 
@@ -109,7 +116,10 @@ export function renderCatalogStatus(
   summaryElement.textContent = 'About this data';
   details.append(
     summaryElement,
-    paragraph(`Published by ${providers}. Only these groups are included:`, 'muted'),
+    paragraph(
+      `Orbital elements published by ${providers}. Only these groups are included:`,
+      'muted',
+    ),
     list,
     paragraph(age, 'muted'),
   );

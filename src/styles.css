@@ -186,6 +186,31 @@ body {
   font-size: 0.9375rem;
 }
 
+.source-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+.swatch {
+  display: inline-block;
+  width: 0.7em;
+  height: 0.7em;
+  margin-right: 0.55em;
+  border-radius: 50%;
+}
+
+.stats {
+  position: fixed;
+  top: calc(76px + env(safe-area-inset-top));
+  left: calc(var(--gap) + env(safe-area-inset-left));
+  right: calc(var(--gap) + env(safe-area-inset-right));
+  margin: 0;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  color: #ffd166;
+  pointer-events: none;
+}
+
 .details + .details {
   margin-top: -4px;
 }

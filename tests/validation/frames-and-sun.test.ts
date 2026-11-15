@@ -116,3 +116,43 @@ describe('sunDirection', () => {
     expect(after).toBeGreaterThan(0);
   });
 });
+
+describe('the Sun over the ground (sidereal time and Sun direction together)', () => {
+  /**
+   * Longitude of the point on the Earth directly beneath the Sun, in degrees
+   * east. This uses every piece the day/night line depends on: the Sun's
+   * inertial direction, sidereal time and the rotation into the Earth-fixed
+   * frame.
+   */
+  function subsolarLongitudeDeg(unixMs: number): number {
+    const sun = sunDirection(unixMs);
+    const fixed = temeToEarthFixed(sun.x, sun.y, sun.z, gmstRadians(unixMs));
+    return degrees(Math.atan2(fixed.y, fixed.x));
+  }
+
+  // These expectations come from the "equation of time", the well-known
+  // difference between clock noon and the moment the Sun is actually due
+  // south. It is independent of the worked examples used above.
+
+  it('is over Greenwich at 12:00 UTC in mid-April, when sundials and clocks agree', () => {
+    // The equation of time passes through zero around 15 April.
+    expect(Math.abs(subsolarLongitudeDeg(Date.UTC(2026, 3, 15, 12)))).toBeLessThan(0.3);
+  });
+
+  it('is about 4.1 degrees west of Greenwich at 12:00 UTC on 3 November', () => {
+    // In early November the Sun runs about 16.4 minutes ahead of the clock,
+    // its largest lead of the year. At 15 degrees per hour that is 4.1 degrees.
+    expect(subsolarLongitudeDeg(Date.UTC(2026, 10, 3, 12))).toBeCloseTo(-4.1, 0);
+  });
+
+  it('is about 3.6 degrees east of Greenwich at 12:00 UTC on 11 February', () => {
+    // In mid-February the Sun runs about 14.2 minutes behind the clock.
+    expect(subsolarLongitudeDeg(Date.UTC(2026, 1, 11, 12))).toBeCloseTo(3.6, 0);
+  });
+
+  it('moves westward by 15 degrees per hour', () => {
+    const start = Date.UTC(2026, 5, 1, 6);
+    const moved = subsolarLongitudeDeg(start + 3_600_000) - subsolarLongitudeDeg(start);
+    expect(moved).toBeCloseTo(-15, 1);
+  });
+});

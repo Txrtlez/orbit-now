@@ -52,15 +52,17 @@ test('loads a compressed catalog and reports what it contains', async ({ page })
 
   await expect(page.locator('html')).toHaveAttribute('data-catalog', 'loaded');
   const status = page.locator('#catalog-status');
-  await expect(status).toContainText('Orbital data loaded for 31 objects');
+  await expect(status).toContainText('Showing 31 objects');
   await expect(status).toContainText('not the full public catalog');
 
   await status.getByText('About this data').click();
-  await expect(status).toContainText('Published by Test fixture');
+  await expect(status).toContainText('Orbital elements published by Test fixture');
   await expect(status).toContainText('Verification element sets: 31');
   await expect(status).toContainText('Downloaded 3 hours ago or more recently.');
 
-  // The globe keeps working alongside the data.
+  // The background thread prepared SGP4 for every object and delivered the
+  // first keyframes, so the objects are on the globe.
+  await expect(page.locator('html')).toHaveAttribute('data-objects', '31');
   await expect(page.locator('html')).toHaveAttribute('data-renderer', 'ready');
   expect(errors).toEqual([]);
 });

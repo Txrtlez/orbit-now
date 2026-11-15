@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#05070d" />
     <meta
       name="description"
-      content="Orbit Now: a live 3D view of the publicly tracked objects in Earth orbit. Under construction."
+      content="Orbit Now: a live 3D view of tracked objects in Earth orbit, where they are right now."
     />
     <title>Orbit Now</title>
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
@@ -16,7 +16,7 @@
     <canvas
       id="globe"
       role="img"
-      aria-label="3D view of the Earth with a latitude and longitude grid"
+      aria-label="3D view of the Earth with the tracked objects orbiting it"
     ></canvas>
 
     <header class="topbar">
@@ -46,18 +46,23 @@
 
     <main>
       <p id="render-status" class="render-status" role="status"></p>
+      <p id="stats" class="stats" hidden></p>
 
       <section id="panel-now" class="panel" role="tabpanel" aria-labelledby="tab-now" tabindex="0">
-        <h2>Under construction</h2>
+        <h2>In orbit now</h2>
         <div id="catalog-status" class="catalog-status">
           <p>Loading orbital data…</p>
         </div>
         <details class="details">
           <summary>What am I looking at?</summary>
           <p class="muted">
-            The globe is an untextured model of the Earth's shape (the WGS 84 ellipsoid) with grid
-            lines every 30° of latitude and longitude. The glow at its edge is decorative, not
-            sunlight.
+            Each dot is one tracked object at its current position, worked out in your browser from
+            its published orbital elements with the standard SGP4 model. The day and night sides
+            follow the Sun's actual position; the twilight band between them is a simplified blend.
+            Earth imagery: NASA Blue Marble and Black Marble.
+          </p>
+          <p class="muted">
+            Work in progress: selecting, searching and filtering objects come next.
           </p>
         </details>
       </section>
