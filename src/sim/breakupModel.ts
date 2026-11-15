@@ -331,6 +331,17 @@ export interface CloudRequest {
    * the cratered target, for non-catastrophic ones.
    */
   readonly remnantCount: number;
+  /**
+   * The most mass the power-law fragments may take, in kilograms, if less
+   * than the mass to conserve. For a collision that is not catastrophic
+   * this is M itself (Krisko 2011): the rest stays in the cratered target.
+   */
+  readonly powerLawMassKg?: number;
+  /**
+   * If true the large pieces are left with no velocity of their own: for
+   * the cratered target of a collision that did not destroy it.
+   */
+  readonly remnantsAtRest?: boolean;
 }
 
 /**
@@ -384,7 +395,7 @@ export function generateCloud(request: CloudRequest, random: Random): Fragment[]
       null,
       false,
     );
-    if (usedKg + fragment.massKg > massToConserveKg) {
+    if (usedKg + fragment.massKg > Math.min(massToConserveKg, request.powerLawMassKg ?? Infinity)) {
       break;
     }
     usedKg += fragment.massKg;
@@ -396,7 +407,8 @@ export function generateCloud(request: CloudRequest, random: Random): Fragment[]
   if (leftoverKg > 0) {
     const each = leftoverKg / remnants;
     for (let i = 0; i < remnants; i += 1) {
-      fragments.push(make(lengthOfMass(each), each, true));
+      const piece = make(lengthOfMass(each), each, true);
+      fragments.push(request.remnantsAtRest === true ? { ...piece, deltaV: [0, 0, 0] } : piece);
     }
   }
   return fragments;
