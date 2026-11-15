@@ -8,19 +8,19 @@ debris-cascade ("Kessler syndrome") simulator.
 **Status: Phases 1 to 3 are done.** The site shows the Earth with its real day and night sides and
 about 19,500 objects moving in real time. Click or tap an object to see what it is, where it is
 and the path of its orbit; search by name or number; filter by constellation, orbit, launch year
-and (once the first download has arrived) kind and owner. The data covers active satellites and
-three debris clouds, not every tracked object (see "Data source"). Three things about Phase 3 are
-still unproven and are listed first under "Known issues".
+kind and owner. The data covers active satellites and
+three debris clouds, not every tracked object (see "Data source"). What is still unproven about Phase 3 is
+listed first under "Known issues".
 
-| Phase | Scope                                                                     | State                                                                                                                                             |
-| ----- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1     | Repository structure, tooling, CI, deploy pipeline, empty app             | Done                                                                                                                                              |
-| 2     | Scheduled OMM data pipeline; SGP4 validated against published vectors     | Done, with one documented exception in the SGP4 gate                                                                                              |
-| 3     | Earth rendering, all objects moving, picking, info panel, filters, search | Done. Frame rate measured by the owner at 240 fps (PC) and 60 fps (phone); the satellite-catalog download has not yet run against the real server |
-| 4     | Overhead passes with visibility; time controls                            | Not started                                                                                                                                       |
-| 5     | Historical debris layers; growth-of-orbit chart                           | Not started                                                                                                                                       |
-| 6     | "What if?" mode: breakup model, propagation, reentry, cascade statistics  | Not started                                                                                                                                       |
-| 7     | Guided tour, shareable links, About page, accessibility, launch           | Not started                                                                                                                                       |
+| Phase | Scope                                                                     | State                                                                                                                 |
+| ----- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| 1     | Repository structure, tooling, CI, deploy pipeline, empty app             | Done                                                                                                                  |
+| 2     | Scheduled OMM data pipeline; SGP4 validated against published vectors     | Done, with one documented exception in the SGP4 gate                                                                  |
+| 3     | Earth rendering, all objects moving, picking, info panel, filters, search | Done. Frame rate measured by the owner at 240 fps (PC) and 60 fps (phone), before the interaction features were added |
+| 4     | Overhead passes with visibility; time controls                            | Not started                                                                                                           |
+| 5     | Historical debris layers; growth-of-orbit chart                           | Not started                                                                                                           |
+| 6     | "What if?" mode: breakup model, propagation, reentry, cascade statistics  | Not started                                                                                                           |
+| 7     | Guided tour, shareable links, About page, accessibility, launch           | Not started                                                                                                           |
 
 ## Run it
 
@@ -344,8 +344,9 @@ groups are used:
 
 **What each object is.** Kind (payload, rocket body, debris), operational status, owner and launch
 date come from CelesTrak's satellite catalog, SATCAT, requested once a day for the same four
-groups. Until the first such download has happened the site derives the launch year from the
-international designator and shows nothing for the rest.
+groups. The first download, on 2026-11-15, covered every object in the catalog. An object
+catalogued since the last download has no such fields until the next one; for it the site derives
+the launch year from the international designator and shows nothing for the rest.
 
 **What it does not show.** This is not the full public catalog. The brief asked for every publicly
 tracked object, and that turned out not to be available from CelesTrak in one query: its GP data is
@@ -403,17 +404,17 @@ and why.
 
 Unproven parts of Phase 3, most important first:
 
-- **The satellite-catalog download has never run against CelesTrak.** The build environment is not
-  allowed to contact CelesTrak, so the request address and the column names come from its
-  documentation and the code was tested with a substitute network only (VALIDATION.md, V3.9). The
-  first scheduled data run after this change is the real test. If CelesTrak refuses or the reply is
-  not what the code expects, the run is marked failed and says why, the orbital data is still
-  published, and the site simply shows no kind, owner or launch date.
 - **Frame rate has not been measured since the interaction features were added.** The 240 fps and
   60 fps figures were taken on the build before selection, search and filters existed. Add `?stats`
   to the page address to measure again; the phone's model would make the figure meaningful.
-- **The owner names were transcribed by an automated page reader** and not checked row by row
-  against CelesTrak's list (VALIDATION.md, V3.10).
+- **The owner names were transcribed by an automated page reader** and not checked name by name
+  against CelesTrak's list; the number of rows matches (VALIDATION.md, V3.10). Three owner codes in
+  the data (`KWT`, `SVK`, `JOR`) are not on CelesTrak's list and are shown as bare codes.
+- **Dots are coloured by the CelesTrak group they came from, not by kind of object.** The brief asks
+  for colour by object type. With the present data the two nearly coincide (the active list is
+  payloads; the three debris groups are debris), and the group colours also tell the three debris
+  clouds apart, so the colouring was left as it is. It should be revisited if the full catalog,
+  with its rocket bodies and inactive satellites, is ever added.
 
 Limits of what is built:
 

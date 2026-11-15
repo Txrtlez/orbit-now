@@ -514,7 +514,39 @@ bytes. The built app loaded that file and showed the fields. The file was discar
 invented was published. The size figure is only indicative, since real fields will compress
 differently.
 
-**Result: pass under test conditions; unproven against the real server.**
+**First real run (added 2026-11-15).** The scheduled run of 11:17 UTC (GitHub Actions run
+43710931763, which started late, at 11:51 UTC) made the first real SATCAT requests. All eight
+requests returned HTTP 200 and every row passed the checks:
+
+| Source                      | Rows   | Accepted | Rejected |
+| --------------------------- | ------ | -------- | -------- |
+| `satcat-iridium-33-debris`  | 657    | 657      | 0        |
+| `satcat-cosmos-2251-debris` | 1,715  | 1,715    | 0        |
+| `satcat-fengyun-1c-debris`  | 3,532  | 3,532    | 0        |
+| `satcat-active`             | 17,426 | 17,426   | 0        |
+
+The SATCAT groups return more rows than the orbital-element groups (for example 657 against 109
+for Iridium 33 debris). The extra rows have no orbital elements in the catalog; the likeliest
+reason is that SATCAT also lists pieces that have since re-entered, but that was not checked. They
+are not added to the catalog, as designed.
+
+Checks on the published file (generated 2026-11-15T11:52:06Z, 19,573 objects, 738,817 bytes
+compressed):
+
+| Check                                                                                                                                             | Result                                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Objects with no SATCAT fields at all                                                                                                              | 0 of 19,573                                                      |
+| Objects with no launch date                                                                                                                       | 0                                                                |
+| Launch year in SATCAT against the year in the object's international designator                                                                   | agree for all 19,573                                             |
+| Object type codes outside the documented four                                                                                                     | none (PAY 16,893; DEB 2,676; R/B 4)                              |
+| Status codes outside the documented eight                                                                                                         | none                                                             |
+| Spot check of three launch dates against dates known independently (from memory): ISS (ZARYA) 1998-11-20, HST 1990-04-24, CSS (TIANHE) 2021-04-29 | agree                                                            |
+| Live site (build 46b2895) shows the fields for a selected object                                                                                  | yes: ISS (NAUKA), Payload, Operational, CIS, launched 2021-07-21 |
+
+The agreement of launch year and designator year is a real cross-check: the two come from
+different CelesTrak data sets (SATCAT and the orbital elements).
+
+**Result: pass.** The request address and column names taken from the documentation were right.
 
 ### V3.10 Code tables for the satellite catalog
 
@@ -529,7 +561,15 @@ differently.
   without any sign of it.
 - **Safeguard in the code:** a code missing from a table is displayed as the bare code. A wrong
   name for a code that is present would not be caught.
-- **Result: not validated.** Open item: check the 132 owners against CelesTrak's page.
+- **Partial checks made afterwards (2026-11-15):**
+  - The page was read a second time and asked only for its number of rows: 132, the number of
+    entries in the code's table. So no row was dropped, unless the same mistake was made twice.
+  - The first real download (V3.9) uses 99 distinct owner codes. Three of them, `KWT`, `SVK` and
+    `JOR` (5 objects in all), are not in the code's table. The second reading confirmed that those
+    three are not on CelesTrak's page either, so the table matches its source and the site shows
+    those three as bare codes.
+- **Result: partly validated.** The row count matches and the gaps are the source's own. Open
+  item: the 132 names themselves have still not been compared with the page by a person.
 
 ### V3.11 Build and browser checks at the end of Phase 3
 
