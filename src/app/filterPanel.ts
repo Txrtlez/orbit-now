@@ -21,8 +21,22 @@ export interface FilterPanelOptions {
    *
    * @param passes for each object, 1 if it passes; null if no filter is active
    * @param shown  how many objects pass
+   * @param state  what is being asked for, for anything that needs to
+   *               recognise a particular combination
    */
-  readonly onChange: (passes: Uint8Array | null, shown: number) => void;
+  readonly onChange: (passes: Uint8Array | null, shown: number, state: FilterState) => void;
+}
+
+/** What other parts of the page may do to the filters. */
+export interface FilterPanelControl {
+  /**
+   * Show only the objects behind these family buttons, clearing every
+   * other filter, exactly as if the viewer had pressed "Clear filters"
+   * and then those buttons.
+   */
+  showOnlyGroups(groupIds: readonly string[]): void;
+  /** Clear every filter. */
+  clear(): void;
 }
 
 function element<K extends keyof HTMLElementTagNameMap>(
@@ -66,7 +80,7 @@ function readYear(input: HTMLInputElement): number | null {
  * orbit regimes, and a range of launch years. Only options that match at
  * least one object in the catalog are offered.
  */
-export function createFilterPanel(options: FilterPanelOptions): void {
+export function createFilterPanel(options: FilterPanelOptions): FilterPanelControl {
   const { container, objects } = options;
   const counts = countFilterOptions(objects);
   const groups = new Set<string>();
@@ -101,13 +115,17 @@ export function createFilterPanel(options: FilterPanelOptions): void {
       : `Showing all ${formatCount(objects.count)} objects.`;
     reset.disabled = !active;
     options.summary.textContent = active ? 'Filters (on)' : 'Filters';
-    options.onChange(active ? passes : null, shown);
+    options.onChange(active ? passes : null, shown, state);
   };
+
+  // The family buttons by identifier, so that they can be pressed from outside.
+  const groupButtons = new Map<string, HTMLButtonElement>();
 
   const toggleSection = <T>(
     title: string,
     entries: readonly { key: T; label: string; count: number; title?: string }[],
     chosen: Set<T>,
+    onButton?: (key: T, button: HTMLButtonElement) => void,
   ): HTMLElement | null => {
     const offered = entries.filter((entry) => entry.count > 0);
     // A question with a single possible answer is not worth asking.
@@ -131,6 +149,7 @@ export function createFilterPanel(options: FilterPanelOptions): void {
         button.setAttribute('aria-pressed', String(pressed));
         update();
       });
+      onButton?.(entry.key, button);
       row.append(button);
     }
     section.append(heading, row);
@@ -146,6 +165,9 @@ export function createFilterPanel(options: FilterPanelOptions): void {
       count: counts.groups.get(group.id) ?? 0,
     })),
     groups,
+    (id, button) => {
+      groupButtons.set(id, button);
+    },
   );
   if (family !== null) {
     sections.push(family);
@@ -250,7 +272,8 @@ export function createFilterPanel(options: FilterPanelOptions): void {
     sections.push(section);
   }
 
-  reset.addEventListener('click', () => {
+  /** Put every control back to "not asked", without announcing the change. */
+  const resetControls = (): void => {
     groups.clear();
     regimes.clear();
     types.clear();
@@ -266,6 +289,10 @@ export function createFilterPanel(options: FilterPanelOptions): void {
     for (const button of container.querySelectorAll('.chip')) {
       button.setAttribute('aria-pressed', 'false');
     }
+  };
+
+  reset.addEventListener('click', () => {
+    resetControls();
     update();
   });
 
@@ -273,4 +300,23 @@ export function createFilterPanel(options: FilterPanelOptions): void {
   footer.append(result, reset);
   container.replaceChildren(...sections, footer);
   update();
+
+  return {
+    showOnlyGroups(groupIds): void {
+      resetControls();
+      for (const id of groupIds) {
+        // A group with no objects has no button, and ticking it would hide
+        // everything; it is left out.
+        if ((counts.groups.get(id) ?? 0) > 0) {
+          groups.add(id);
+          groupButtons.get(id)?.setAttribute('aria-pressed', 'true');
+        }
+      }
+      update();
+    },
+    clear(): void {
+      resetControls();
+      update();
+    },
+  };
 }

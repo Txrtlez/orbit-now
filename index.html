@@ -137,10 +137,23 @@
               <summary>Passes over you</summary>
               <div id="passes-panel" class="passes"></div>
             </details>
+            <details id="events" class="details" hidden>
+              <summary>Debris from three break-ups</summary>
+              <div id="events-panel" class="events"></div>
+            </details>
             <details id="filters" class="details" hidden>
               <summary id="filters-summary">Filters</summary>
               <div id="filter-panel" class="filter-panel"></div>
             </details>
+            <button
+              id="growth-open"
+              type="button"
+              class="link-row"
+              aria-haspopup="dialog"
+              aria-controls="growth-dialog"
+            >
+              Growth of orbit since 1957
+            </button>
             <details class="details">
               <summary>What am I looking at?</summary>
               <p class="muted">
@@ -168,6 +181,19 @@
         <section id="whatif-card" class="card overview" tabindex="0"></section>
       </div>
     </main>
+
+    <dialog id="growth-dialog" class="dialog" aria-labelledby="growth-title">
+      <header class="card-header">
+        <div class="card-titles">
+          <h2 id="growth-title">Growth of orbit</h2>
+          <p class="headline">Catalogued objects in Earth orbit, month by month since 1957</p>
+        </div>
+        <button id="growth-close" type="button" class="icon-button close" aria-label="Close">
+          &times;
+        </button>
+      </header>
+      <div id="growth-body" class="growth"></div>
+    </dialog>
 
     <footer class="footer">
       <span id="build-info"></span>

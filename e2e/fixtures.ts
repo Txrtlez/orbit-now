@@ -38,7 +38,26 @@ export interface FixtureOptions {
    * are not on the real list.
    */
   readonly withBrightGroup?: boolean;
+  /**
+   * If true, the first objects of the catalog are also listed under three
+   * further sources with the identifiers of CelesTrak's three debris
+   * groups (`DEBRIS_FIXTURE` says how many each), so that the page has
+   * debris clouds to single out. A TEST FIXTURE: these objects have
+   * nothing to do with those break-ups.
+   */
+  readonly withDebrisGroups?: boolean;
 }
+
+/**
+ * How many fixture objects are listed under each pretend debris group.
+ * The groups take consecutive objects from the start of the catalog and do
+ * not overlap.
+ */
+export const DEBRIS_FIXTURE = {
+  'fengyun-1c-debris': 5,
+  'cosmos-2251-debris': 3,
+  'iridium-33-debris': 2,
+} as const;
 
 /** Revolutions per day above which a fixture object counts as being in a low orbit. */
 const LOW_ORBIT_MEAN_MOTION = 11;
@@ -60,10 +79,23 @@ export function fixtureCatalogGzip(options: FixtureOptions): Buffer {
           epochMicros: (epochAtMs % 86_400_000) * 1000,
         }));
   const bright = options.withBrightGroup === true;
+  // Consecutive, non-overlapping runs of objects for the pretend debris groups.
+  let taken = 0;
+  const debris =
+    options.withDebrisGroups === true
+      ? Object.entries(DEBRIS_FIXTURE).map(([id, count]) => {
+          const members = elementSets.slice(taken, taken + count);
+          taken += count;
+          return { id, members };
+        })
+      : [];
   const catalog = mergeCatalog(
     null,
     new Map([
       ['fixture', { elementSets, fetchedAt: options.fetchedAt }],
+      ...debris.map(
+        ({ id, members }) => [id, { elementSets: members, fetchedAt: options.fetchedAt }] as const,
+      ),
       ...(bright
         ? ([
             [
@@ -86,6 +118,13 @@ export function fixtureCatalogGzip(options: FixtureOptions): Buffer {
         url: 'https://example.invalid/',
         minimumObjects: 1,
       },
+      ...debris.map(({ id }) => ({
+        id,
+        label: `Pretend ${id}`,
+        provider: 'Test fixture',
+        url: `https://example.invalid/${id}`,
+        minimumObjects: 1,
+      })),
       ...(bright
         ? [
             {

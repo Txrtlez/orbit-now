@@ -247,7 +247,13 @@ export function createExplorer(options: ExplorerOptions): Explorer {
   const onKeyDown = (event: KeyboardEvent): void => {
     // Escape closes the object panel, unless something else (such as the
     // search suggestions) has already used the key.
-    if (event.key === 'Escape' && !event.defaultPrevented && selected >= 0) {
+    // While a dialog is open the key belongs to the dialog, which closes itself.
+    if (
+      event.key === 'Escape' &&
+      !event.defaultPrevented &&
+      selected >= 0 &&
+      document.querySelector('dialog[open]') === null
+    ) {
       select(-1, false);
     }
   };

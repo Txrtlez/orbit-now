@@ -5,8 +5,10 @@ import { createFrameStats } from './app/stats';
 import { initTabs } from './app/tabs';
 import { initTimeBar } from './app/timeBar';
 import { createClock } from './app/clock';
+import { createEventsPanel, type EventsPanel } from './app/eventsPanel';
 import { createExplorer, type Explorer } from './app/explorer';
 import { createFilterPanel } from './app/filterPanel';
+import { countFilterOptions } from './app/filters';
 import { createPassesPanel } from './app/passesPanel';
 import { formatCount } from './app/format';
 import { buildSearchIndex, searchObjects } from './app/search';
@@ -289,6 +291,67 @@ function inertialDirectionOf(
   };
 }
 
+/**
+ * The growth-of-orbit chart opens in a dialog. Its code and its data are
+ * fetched the first time it is opened, not with the page. It does not
+ * depend on the orbital data, so it works even if that fails to load.
+ */
+function startGrowthChart(): void {
+  const dialog = requireElement('growth-dialog', HTMLDialogElement);
+  const body = requireElement('growth-body', HTMLElement);
+  let chart: { start(): void; stop(): void } | null = null;
+  let loading = false;
+
+  const begin = (): void => {
+    if (dialog.open) {
+      chart?.start();
+    }
+  };
+
+  requireElement('growth-open', HTMLButtonElement).addEventListener('click', () => {
+    dialog.showModal();
+    if (chart !== null) {
+      begin();
+      return;
+    }
+    if (loading) {
+      return;
+    }
+    loading = true;
+    body.textContent = 'Loading…';
+    import('./growth/growthChart')
+      .then(({ mountGrowthChart }) => {
+        const objects = Number(document.documentElement.dataset.objects);
+        chart = mountGrowthChart(body, {
+          reducedMotion: () => reducedMotion.matches,
+          siteObjectCount: Number.isFinite(objects) && objects > 0 ? objects : null,
+        });
+        document.documentElement.dataset.growth = 'ready';
+        begin();
+      })
+      .catch((error: unknown) => {
+        console.error('Failed to load the growth chart:', error);
+        loading = false;
+        body.textContent =
+          'The chart could not be loaded. Check your connection, close this and try again.';
+      });
+  });
+  requireElement('growth-close', HTMLButtonElement).addEventListener('click', () => {
+    dialog.close();
+  });
+  // A click on the dimmed area around the dialog closes it. The dialog's
+  // own box is covered by its children, so only the surround reports the
+  // dialog itself as the target.
+  dialog.addEventListener('click', (event) => {
+    if (event.target === dialog) {
+      dialog.close();
+    }
+  });
+  dialog.addEventListener('close', () => {
+    chart?.stop();
+  });
+}
+
 type CatalogState = 'loading' | 'loaded' | 'missing' | 'error';
 
 /** Record the catalog's state on the <html> element, for the end-to-end tests. */
@@ -374,19 +437,43 @@ async function startCatalog(globe: Globe | null): Promise<void> {
     startSearch(objects, (index) => {
       created.select(index, true);
     });
-    createFilterPanel({
+    // The events panel is made after the filters it drives, and the filters
+    // report their first state as they are made, so it is looked up when needed.
+    let eventsPanel: EventsPanel | null = null;
+    const filterControl = createFilterPanel({
       container: requireElement('filter-panel', HTMLElement),
       summary: requireElement('filters-summary', HTMLElement),
       objects,
-      onChange: (passes, shown) => {
+      onChange: (passes, shown, state) => {
         created.setFilter(passes);
         headline.textContent =
           passes === null
             ? `Showing ${formatCount(objects.count)} objects`
             : `Showing ${formatCount(shown)} of ${formatCount(objects.count)} objects`;
         document.documentElement.dataset.shown = String(shown);
+        eventsPanel?.syncWithFilters(state);
       },
     });
+    eventsPanel = createEventsPanel({
+      container: requireElement('events-panel', HTMLElement),
+      groupCounts: countFilterOptions(objects).groups,
+      designators: objects.records.map((record) => record.objectId),
+      showOnlyGroups: (groupIds) => {
+        filterControl.showOnlyGroups(groupIds);
+      },
+      clearFilters: () => {
+        filterControl.clear();
+      },
+      onOpenChange: (eventId) => {
+        // For the end-to-end tests.
+        if (eventId === null) {
+          delete document.documentElement.dataset.event;
+        } else {
+          document.documentElement.dataset.event = eventId;
+        }
+      },
+    });
+    requireElement('events', HTMLElement).hidden = false;
     requireElement('filters', HTMLElement).hidden = false;
 
     const observerMarker = createObserverMarker();
@@ -456,6 +543,7 @@ requireElement('build-info', HTMLElement).textContent = describeBuild(
 );
 startOverviewToggle();
 startTabs();
+startGrowthChart();
 initTimeBar(
   {
     bar: requireElement('time-bar', HTMLElement),
