@@ -1,0 +1,20 @@
+{
+  "source": "Orbit Now published catalog (data branch, commit a706f10), generated 2026-11-15T11:52:06.929Z from CelesTrak GP data downloaded 2026-11-15T11:51:52Z (group \"active\")",
+  "note": "REAL DATA. The element set for the ISS (catalog number 25544) exactly as it stood in the published catalog. Used to check predicted passes against Heavens-Above.",
+  "epochUtc": "2026-11-14T22:45:17.822Z",
+  "record": {
+    "noradId": 25544,
+    "name": "ISS (ZARYA)",
+    "objectId": "1998-067A",
+    "epochDay": 20771,
+    "epochMicros": 81917822016,
+    "meanMotion": 15.49382049,
+    "eccentricity": 0.0007413,
+    "inclination": 51.6323,
+    "raan": 274.0377,
+    "argPericenter": 26.4902,
+    "meanAnomaly": 333.6464,
+    "bstar": 0.00018276,
+    "sourceMask": 8
+  }
+}
