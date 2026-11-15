@@ -5,7 +5,7 @@ debris-cascade ("Kessler syndrome") simulator.
 
 **Live site:** <https://txrtlez.github.io/orbit-now/>
 
-**Status: Phases 1 to 5 are done.** The site shows the Earth with its real day and night sides and
+**Status: Phases 1 to 6 are done.** The site shows the Earth with its real day and night sides and
 about 19,500 objects moving in real time. Click or tap an object to see what it is, where it is
 and the path of its orbit; search by name or number; filter by constellation, orbit, launch year,
 kind and owner. The clock can be paused, run at up to 600 times normal speed, or moved three days
@@ -13,7 +13,11 @@ either way. Give a place (your device's position, a city, or coordinates) and th
 passes of the space stations and other bright satellites over it for the next five days, and
 which of them can be seen. Three documented break-ups (2007, 2009 and 2021) can be opened to read
 what happened and to leave only what remains of each debris cloud on the globe, and a chart plays
-through NASA's count of catalogued objects month by month since 1957. The data on the globe covers
+through NASA's count of catalogued objects month by month since 1957. The "What if?" tab stages a
+break-up (three set up like real ones, two made up, or the object you have selected), makes the
+fragments with NASA's standard breakup model, follows them for a century, and shows the cloud on
+the globe with a table and chart of what is left; it is an illustrative model, not a prediction,
+and says so. The data on the globe covers
 active satellites, three debris clouds and CelesTrak's list of the brightest objects, not every
 tracked object (see "Data source"). What is still unproven is listed first under "Known issues".
 
@@ -24,7 +28,7 @@ tracked object (see "Data source"). What is still unproven is listed first under
 | 3     | Earth rendering, all objects moving, picking, info panel, filters, search | Done. Frame rate measured by the owner at 240 fps (PC) and 60 fps (phone), before the interaction features were added              |
 | 4     | Overhead passes with visibility; time controls                            | Done. ISS passes agree with Heavens-Above at four places (launch gate 2). The bright-objects group awaits its first download       |
 | 5     | Historical debris layers; growth-of-orbit chart                           | Done. Nothing of the 2021 Cosmos 1408 cloud is in the data, and the site says so. The chart's numbers were read from a NASA figure |
-| 6     | "What if?" mode: breakup model, propagation, reentry, cascade statistics  | Started. The breakup model is written and tested (VALIDATION.md, V6.1) but not yet used by the app; nothing else is built          |
+| 6     | "What if?" mode: breakup model, propagation, reentry, cascade statistics  | Done. All four launch gates have been run (VALIDATION.md, V6.2). Limits of the model: "Known issues" and V6.3 to V6.5              |
 | 7     | Guided tour, shareable links, About page, accessibility, launch           | Not started                                                                                                                        |
 
 ## Run it
@@ -114,10 +118,13 @@ src/
                            selection ring, picking, camera framing
   catalog/                 The catalog file format (shared with the pipeline), its loader, object
                            categories, satellite-catalog code tables, the per-object index
-  sim/                     Physics for "What if?" mode: so far the breakup model only
+  sim/                     Physics for "What if?" mode, none of it touching the page: the breakup
+                           model, orbits under J2, air density, decay under drag, a step-by-step
+                           integrator kept for checking, the presets, a whole run, its worker
   growth/                  The growth-of-orbit chart, loaded on demand: NASA's figure as read,
                            its conversion to counts, the chart itself, and a README on provenance
-  modes/whatif/            "What if?" mode, loaded on demand as a separate file
+  modes/whatif/            "What if?" mode, loaded on demand as a separate file: the form and
+                           results, the fragment layer on the globe, the chart
 pipeline/                  Data pipeline: download, check, merge, publish (runs in GitHub Actions)
 tests/validation/          Launch-gate validations against published reference data
 tests/pipeline/            Pipeline tests; the network is always substituted, never contacted
@@ -445,6 +452,39 @@ and because the browser's own dialog element takes care of keyboard focus and th
 code and data (34 kB, 10 kB compressed) are fetched when it is first opened and are not part of
 the first download.
 
+### 27. Fragments are moved by averaged formulas, checked against step-by-step integration
+
+A century of a few thousand fragments cannot be integrated step by step in a browser: at 10 s a
+step it is 3 × 10⁸ steps per fragment. Each fragment's orbit is instead described by its size,
+shape and three angles, and those are advanced with formulas averaged over a revolution: the
+secular J2 rates for the angles, and drag averaged by numerical quadrature for the size and shape.
+Steps adapt to how fast the orbit is falling, from minutes near re-entry to two years where there
+is almost no air, so a fragment takes about a hundred steps instead of hundreds of millions. A
+plain Runge-Kutta integrator (`sim/numeric.ts`) is kept in the repository only to check the
+formulas, which is how launch gate 4 was run (VALIDATION.md, V6.2 and V6.3). The cost is
+exactness of position along the orbit after years, which nothing here uses.
+
+### 28. Hits are counted, not staged
+
+The brief asks for cascade statistics. What is computed is the expected number of hits by the
+cloud's fragments on the satellites in this site's data, from a collision rate in 50 km shells of
+height, with the range across twelve repetitions. No follow-on collision is made to happen and
+no second generation of debris is created. Two reasons. First, this site's data is almost
+entirely working satellites; the dead satellites and spent stages that a real cascade feeds on
+are not in it (VALIDATION.md, V6.5), so a staged cascade would be a confident picture of the
+wrong population. Second, an expected number with its assumptions beside it is easier to read
+honestly than an animation of one random outcome. The page calls the number what it is: how much
+crossing traffic a cloud makes if nobody dodged.
+
+### 29. The cloud is drawn over a dimmed tracker, in its own shape and colours
+
+Simulated fragments must never be mistaken for tracked objects. They are drawn as small squares
+in two colours used nowhere else (one per parent body), the tracked objects fade to about a third
+of their brightness while a cloud is on show, and the cloud disappears when the tab is left. The
+time under the cloud is a separate control from the tracker's clock, stretched evenly in ratio
+from one minute to a hundred years, because a cloud changes as much between a day and a month as
+between ten years and a hundred. The tracked objects behind it stay at the tracker's own time.
+
 ## Data source
 
 **What the site shows.** Orbital data comes from [CelesTrak](https://celestrak.org), which
@@ -527,6 +567,36 @@ pipeline's own record of the last request to each group, including how many rows
 and why.
 
 ## Known issues
+
+Limits of "What if?" mode (Phase 6), most important first. All of it is an illustrative model:
+
+- **The model makes too few pieces for real events,** by a factor of 4 for Fengyun-1C, 2 for
+  Iridium 33 and Cosmos 2251 and 1.3 for Cosmos 1408 (VALIDATION.md, V6.4). This is the published
+  model's average against particular events, not a fault found in the code, but for Fengyun-1C
+  this implementation also gives 21% fewer pieces after a day than NASA said its model does, and
+  the cause has not been found.
+- **The count of hits is not a forecast of collisions.** Its targets are the satellites in this
+  site's data, nearly all of them working and able to dodge; dead satellites and spent rocket
+  stages are mostly absent; every target is assumed to weigh 500 kg; targets stay where they are
+  today for a century; pieces under 10 cm are left out; and the debris of any later collision is
+  not followed (decision 28).
+- **The air is one fixed table.** There is no solar cycle. The "Sun" setting multiplies the table
+  by 1/3, 1 or 3, numbers of mine. With the middle setting the model's share of debris still in
+  orbit comes within 3 to 9 percentage points of three real events, which is partly luck.
+- **One reading of the breakup model rests on memory:** the area-to-mass distribution is taken as
+  a mixture of two populations (VALIDATION.md, V6.1). The 2001 paper was not read.
+- **The masses in the three history-like presets are rounded,** and Cosmos 1408's (1,750 kg) is
+  from LeoLabs, not NASA. The orbits are circular; the real ones were nearly so.
+- **The object you select has no mass in the data,** so the mass is whatever is typed, 1,000 kg
+  unless changed. A collision's second body is invented: its mass and the angle are typed too.
+- **The tracked objects behind a cloud are shown at the tracker's time,** not at the cloud's.
+  Ten years after a break-up the cloud is drawn over today's satellites.
+- **An interceptor's own mass and debris are left out** of the two interceptor presets.
+- **Running a large event takes a while on a slow phone.** The made-up collision (about 2,500
+  pieces, twelve repetitions) took 18 s on the build machine, with the first cloud on the globe
+  after 3 s. Frame rate with a cloud on show has not been measured on real hardware.
+- **Nothing of a run is kept.** Leaving the page loses it, and there is no link to a run yet
+  (shareable links are Phase 7).
 
 Unproven parts of Phases 3 and 4, most important first:
 

@@ -5,15 +5,14 @@ and the date it was made. A check that has not been run is listed as "not yet ru
 
 ## Launch gates
 
-These are the four validations that must pass before launch. The last cannot be run yet, because
-the code it tests has not been written.
+These are the four validations that must pass before launch. All four have now been run.
 
 | Gate                                                                                      | Phase | Status                                         |
 | ----------------------------------------------------------------------------------------- | ----- | ---------------------------------------------- |
 | SGP4 matches the test vectors in Vallado et al. (2006), "Revisiting Spacetrack Report #3" | 2     | **Pass, with one documented exception** (V2.1) |
 | ISS passes match NASA Spot the Station or Heavens-Above for at least three locations      | 4     | **Pass**, Heavens-Above, four locations (V4.2) |
 | Breakup model reproduces the published size-distribution curves and conserves momentum    | 6     | **Pass, with stated limits** (V6.1)            |
-| J2 propagation matches the analytic secular nodal precession rate                         | 6     | Not yet run                                    |
+| J2 propagation matches the analytic secular nodal precession rate                         | 6     | **Pass**, within 0.2% in five cases (V6.2)     |
 
 ## Phase 1
 
@@ -1114,14 +1113,14 @@ machine's fonts. That browser reported that reduced motion is asked for, so the 
 last month and did not play by itself; playing was therefore not seen on the live site, only in the
 tests. The browser pane was in the background, so no frame rate was measured.
 
-## Phase 6 (in progress)
+## Phase 6
 
 ### V6.1 The breakup model (launch gate 3)
 
 - **Date:** 2026-11-15
 - **What is checked:** `src/sim/breakupModel.ts`, the NASA Standard Breakup Model: fragment
-  counts and sizes, area-to-mass ratio, area, mass and ejection speed. It is not yet used by the
-  app; "What if?" mode still says it has not been built.
+  counts and sizes, area-to-mass ratio, area, mass and ejection speed. (When this entry was
+  written the app did not yet use it; it now does, see V6.4 onwards.)
 - **Reproduce:** `VALIDATION_LOG=/tmp/measurements.txt npm run test -- tests/validation/breakup-model src/sim`
 
 **Where the equations and constants came from.** The brief asks for them to be verified from the
@@ -1198,10 +1197,297 @@ The published model throws each fragment in an independent random direction, so 
 left with some net momentum. "Approximately conserved" in the gate is met as generated only in the
 sense of those percentages. `withoutNetMomentum` removes the remainder exactly by shifting every
 fragment by the same velocity; it is labelled a simplification, it is not part of the published
-model, and whether the simulator uses it is still to be decided.
+model, and the simulator does not use it: fragments are thrown as the published model throws them.
 
 **Result: pass, with stated limits.** The size distribution, which is what the gate names, is
 verified against NASA's own statement of it. The area-to-mass and speed distributions rest on
 secondary sources and, at one point, on memory. Not implemented: any cap on ejection speed; the
 choice of S by type of exploding body; any difference in treatment between the two bodies of a
 collision.
+
+### V6.2 Orbits turning under J2 (launch gate 4)
+
+- **Date:** 2026-11-15
+- **What is checked:** `secularRates` in `src/sim/orbit.ts`, the formulas the simulator uses to
+  turn each fragment's orbit: the drift of the node, of the perigee and of the mean anomaly caused
+  by the Earth's bulge (J2).
+- **Reproduce:** `VALIDATION_LOG=/tmp/measurements.txt npm run test -- tests/validation/sim-propagation`
+
+**How the gate was run.** The simulator cannot integrate several thousand fragments step by step
+for a century in a browser, so it moves them with the analytic rates. The gate is therefore run
+the other way round from how it reads. The equations of motion with the J2 term are integrated
+numerically (fourth-order Runge-Kutta, 10 s steps, 5 days; `src/sim/numeric.ts`), with no formula
+for the node anywhere in them. The node is read from the position and velocity at the start and
+the end, and its drift is compared with the analytic rate
+`-(3/2) n J2 (R/p)^2 cos i`, where `p = a(1 - e^2)`.
+
+| Orbit                                 | Integrated, degrees/day | Analytic, degrees/day | Difference |
+| ------------------------------------- | ----------------------- | --------------------- | ---------- |
+| Like Fengyun-1C: 860 km, 98.65°       | 0.96261                 | 0.96332               | 0.07%      |
+| Like the Space Station: 420 km, 51.6° | -4.95785                | -4.95391              | 0.08%      |
+| Like Cosmos 2251: 789 km, 74.0°       | -1.82642                | -1.82742              | 0.05%      |
+| Like Cosmos 1408: 480 km, 82.56°      | -1.00093                | -1.00179              | 0.09%      |
+| Eccentric: a = 8,000 km, e = 0.1, 30° | -3.99233                | -3.98519              | 0.18%      |
+| The same orbit's perigee              | 6.34099                 | 6.32750               | 0.21%      |
+
+Limits asserted in the test: 0.5% for the node, 1% for the perigee. The differences that remain
+are expected: the analytic rate is the first-order one, and the elements read from an instantaneous
+position and velocity wobble around the mean elements the formula is written for.
+
+**An independent figure.** A Sun-synchronous orbit must turn its node 360° a year, 0.9856°/day.
+Fengyun-1C was a Sun-synchronous weather satellite; for 860 km and 98.65° the formula gives
+0.9656°/day, 2% short. The height and tilt used are rounded ones, so this shows only that the
+formula has the right size and sign. It is not counted towards the gate.
+
+**The geometry of a collision,** checked in the same file: two bodies at 788.6 km and 72.5° N on
+orbits tilted 86.3996° (northbound) and 74.0355° (southbound) meet at 11.57 km/s. NASA gave
+"more than 11 km/s" and 11.6 km/s for Iridium 33 and Cosmos 2251 (V5.2). The two tilts are the
+catalogued inclinations of the two satellites as I recorded them in the earlier session; which
+was northbound is my choice, made because it is the one that reproduces NASA's speed.
+
+**From memory:** the three secular-rate formulas were written from memory and then tested as
+above. The node formula is the one the gate tests. The perigee formula is tested in one case. The
+mean-anomaly correction is not tested separately; an error in it would change where fragments are
+along their orbits by a fraction of a percent per revolution and nothing else. Constants are
+SGP4's WGS-72 values (μ = 398,600.8 km³/s², R = 6,378.135 km, J2 = 0.001082616), the same ones the
+tracker uses.
+
+**Result: pass.**
+
+### V6.3 Orbits shrinking under air drag
+
+- **Date:** 2026-11-15
+- **What is checked:** `averagedDragRates` and `followDecay` in `src/sim/decay.ts`, and the air
+  density table in `src/sim/atmosphere.ts`.
+- **Reproduce:** as V6.2 (same test file), and `npm run test -- src/sim/orbit.test.ts`
+
+The simulator averages the effect of drag over a revolution so that it can take steps of days or
+years. The averaged rates were compared with the same Runge-Kutta integrator, with drag switched
+on and J2 switched off, over two days:
+
+| Orbit and area-to-mass ratio           | Fall in a, integrated | Fall in a, averaged theory | Difference |
+| -------------------------------------- | --------------------- | -------------------------- | ---------- |
+| Near-circular, 400 km, 0.05 m²/kg      | 3.8385 km             | 3.7078 km                  | 3.4%       |
+| Eccentric, 350 by 900 km, 0.1 m²/kg    | 3.7819 km             | 3.7758 km                  | 0.16%      |
+| Near-circular, 800 km, 1 m²/kg         | 0.2429 km             | 0.2427 km                  | 0.09%      |
+| Eccentric case, change in eccentricity | -4.614 × 10⁻⁴         | -4.609 × 10⁻⁴              | 0.1%       |
+| 400 km case, change in eccentricity    | -3.685 × 10⁻⁵         | -3.348 × 10⁻⁵              | 10%        |
+
+Limit asserted: 5% on the fall in a. The 3.4% in the first row is the theory holding its rates
+fixed for two days while the real orbit, 4 km lower by the end, meets thicker air; the simulator
+re-evaluates the rates as the orbit falls (a step never lets a fall by more than 10 km, or by more
+than a twentieth of the height left above 100 km). The 10% on the eccentricity of a nearly
+circular orbit is of a number that is itself nearly zero and has no visible effect.
+
+**What this does and does not show.** It shows the averaging is done correctly. It says nothing
+about whether the air density is right, and the density is the weak part:
+
+- **Simplification.** The density is the "exponential atmosphere", one fixed table. The real
+  density at these heights changes by a factor of ten or more over the Sun's eleven-year cycle.
+  The table is Table 8-4 of Vallado's _Fundamentals of Astrodynamics and Applications_; I did not
+  have the book, and took the values on 2026-11-15 from MIT's MOCAT-MC (`densityexp_vec.m`), which
+  cites that table.
+- **Assumption, not from any source.** The "Sun" setting multiplies the whole table by 1/3, 1 or 3.
+- **From memory.** The drag coefficient 2.2 and the re-entry height of 120 km (a fragment is
+  counted as down when its perigee falls below it) are conventional values written from memory.
+- **Simplifications in the theory:** the air does not turn with the Earth; height is measured from
+  a spherical Earth; the elements a fragment starts with are used as if they were mean elements;
+  the Sun's and Moon's pull and sunlight pressure are left out (sunlight pressure matters for the
+  lightest fragments).
+
+**Result: the method passes; the atmosphere is a stated simplification.** How well the two together
+reproduce real debris is V6.4.
+
+### V6.4 The whole simulation against three real break-ups
+
+- **Date:** 2026-11-15
+- **What is checked:** `runSimulation` (`src/sim/simulate.ts`) with the three presets that are set
+  up like real events (`src/sim/scenario.ts`): the masses, heights and tilts NASA records (V5.2),
+  on circular orbits. Six repetitions each; the middle value is given.
+- **Reproduce:** `VALIDATION_LOG=/tmp/measurements.txt npm run test -- tests/validation/sim-scenarios`
+
+**How many pieces.** These repeat V6.1's finding with the full simulation:
+
+| Set up like                | Pieces of 10 cm and more, model | Catalogued from the real event | Real / model |
+| -------------------------- | ------------------------------- | ------------------------------ | ------------ |
+| Fengyun-1C (950 kg)        | 863                             | 3,532                          | 4.1          |
+| Iridium 33 and Cosmos 2251 | 1,194                           | 2,372                          | 2.0          |
+| Cosmos 1408 (1,750 kg)     | 1,364                           | 1,785                          | 1.3          |
+
+For Fengyun-1C there is a like-for-like figure. Johnson and others ("The characteristics and
+consequences of the break-up of the Fengyun-1C spacecraft", IAC-07-A6.3.01, NASA NTRS 20070007324)
+wrote that the standard model "would predict about 1000 debris of that size remaining in orbit
+after the first day". This implementation leaves **788** in orbit after the first day, of 863
+made. That is 21% below NASA's round figure. I have not established the cause. Candidates: NASA
+may have included the interceptor's mass or used a larger satellite mass; and this simulation
+puts the satellite on a circular orbit and throws 8% of the pieces straight down into the air.
+A NASA presentation of 2010 (NTRS 20100035122) says the real cloud had "more fragments, and more
+light-weight materials" than the model predicts, that Iridium 33's pieces had area-to-mass ratios
+about three times the model's, and that Cosmos 2251's matched it well.
+
+**How fast the pieces come down.** NASA's counts of 31 January 2023 (V5.2) give the share of each
+event's catalogued pieces still in orbit on that date. The model's share is taken of the pieces
+still up after one month, because a piece has to stay up for weeks at least to be catalogued.
+
+| Set up like                | Years after | Really still in orbit | Model, quiet Sun | Model, average | Model, active Sun |
+| -------------------------- | ----------- | --------------------- | ---------------- | -------------- | ----------------- |
+| Fengyun-1C                 | 16.05       | 79.1%                 | 85.8%            | **76.4%**      | 55.0%             |
+| Iridium 33 and Cosmos 2251 | 13.97       | 55.7%                 | 78.7%            | **64.3%**      | 40.2%             |
+| Cosmos 1408                | 1.21        | 20.4%                 | 51.5%            | **25.2%**      | 7.3%              |
+
+With the average setting the model is within 3, 9 and 5 percentage points of what happened, across
+events at 860, 790 and 480 km and over spans from 14 months to 16 years. Limit asserted in the
+test: within 25 points for at least one Sun setting, and fewer left with more air.
+
+**How much weight this bears.** Less than the closeness suggests.
+
+- The agreement is in the share that came down, not in the number of pieces, which is wrong by
+  factors of 1.3 to 4.
+- The three real spans each cover a different part of the Sun's cycle, which the model does not
+  have. NASA attributed the fast decay of the Cosmos 1408 cloud to high solar activity (V5.2); the
+  model's average setting matches it anyway, which is partly luck.
+- The model's pieces are, on NASA's own evidence above, heavier for their size than Fengyun-1C's
+  and Iridium 33's were, which makes them come down more slowly; a too-thick or too-thin table of
+  air could be hiding that.
+- NASA's 2007 statement that most Fengyun-1C debris would stay up for "decades and even centuries"
+  (V5.2) agrees with the model: 72% still up after 10 years and 30% after 100.
+- HOOSF's expectation that about 90% of the Cosmos 1408 debris would re-enter within about five
+  years (V5.3) agrees with the model: under 1% is left after 10 years and 19% after one.
+
+**From other than NASA:** the mass of Cosmos 1408, 1,750 kg, is from LeoLabs ("Cosmos 1408 breakup
+observations one month later", 21 December 2021), which gives it as the manufacturer's figure and
+corrects its own earlier 2,200 kg. I did not find the mass in a NASA source. Its orbit's tilt
+(82.56°) and Fengyun-1C's (98.65°) are the catalogued inclinations as I recorded them earlier;
+other sources read in this session give 82.5° to 82.6° for the former.
+
+**Result: plausible, with large stated limits.** The model is illustrative. It gets how long debris
+lasts at different heights about right, and how many pieces a particular event makes wrong by a
+factor of up to four.
+
+### V6.5 Hits on other satellites, and what could not be checked
+
+- **Date:** 2026-11-15
+- **What is checked:** the estimate of follow-on hits in `src/sim/simulate.ts`.
+- **Reproduce:** as V6.4, and `npm run test -- src/sim/simulate.test.ts`
+
+**The method.** Space from 150 to 2,000 km is cut into 37 shells 50 km thick. Every satellite and
+rocket stage in the tracker's data is shared out between the shells in proportion to the time its
+orbit spends in each, and so is each fragment, at each stage of its decay. In a shell holding N
+objects in volume V, a fragment is expected to hit one at the rate `N A v / V` (the kinetic theory
+of gases), with:
+
+- **A, assumption:** every object is treated as one of 500 kg, which the breakup model's own
+  size relations make 2.8 m across with a cross-section of 4.4 m². The orbital data has no masses
+  or sizes. 500 kg is a round number of mine, not a statistic.
+- **v, simplification:** four thirds of the circular orbital speed, about 10 km/s. That is the
+  average of `2 v sin(g/2)` over the angle g between two orbit planes pointing in random
+  directions. Real orbit planes are not random (many satellites share a few tilts).
+- A hit counts as destructive if the fragment's energy at that speed exceeds 40 J per gram of the
+  500 kg object, the breakup model's threshold: a fragment of about 0.4 kg or more.
+
+The results are expected numbers of hits; the chance of at least one is `1 - exp(-expected)`.
+
+**What the unit tests show** (`simulate.test.ts`): the bookkeeping is right. A circular orbit lies
+wholly in its own shell; an eccentric one is shared out and the shares add to one; doubling the
+objects doubles the hits; no objects, no hits; hits only grow with time; destructive hits are a
+part of all hits; the hits by shell add up to the total. In a browser test of the built site
+against the real catalog (below) the numbers agree with these.
+
+**The numbers,** against the tracker's data of 2026-11-15 (16,897 satellites and rocket stages of
+19,572 objects; counts by shell in `tests/fixtures/sim/leo-bands-2026-11-15.json`), average Sun,
+six repetitions, middle value with lowest and highest:
+
+| Preset                                       | Pieces | Left after 1, 10, 100 years | Hits expected in 100 years | Of them destructive |
+| -------------------------------------------- | ------ | --------------------------- | -------------------------- | ------------------- |
+| Weather satellite, 860 km (like Fengyun-1C)  | 863    | 84%, 72%, 30%               | 0.22 (0.21 to 0.23)        | 0.08                |
+| Two satellites, 790 km (like Iridium/Cosmos) | 1,194  | 80%, 61%, 15%               | 0.32 (0.31 to 0.33)        | 0.15                |
+| Low satellite, 480 km (like Cosmos 1408)     | 1,364  | 19%, 1%, 0%                 | 0.13 (0.12 to 0.14)        | 0.08                |
+| Rocket stage and satellite, 850 km (made up) | 2,535  | 72%, 59%, 18%               | 0.49 (0.47 to 0.49)        | 0.14                |
+| Rocket stage explodes, 600 km (made up)      | 238    | 35%, 3%, 0%                 | 0.023 (0.020 to 0.025)     | 0.012               |
+
+The made-up collision meets at 10.5 km/s with 18,382 J/g, far over the 40 J/g threshold, as the
+real one did (11.57 km/s, 41,678 J/g by the same formula).
+
+**Why these numbers must not be read as forecasts.**
+
+1. **The targets are almost all working satellites.** Of the 16,897, all but 3 carry a status code
+   for a working satellite, and 10,110 of them are in the single shell from 450 to 500 km. This
+   site's data comes from CelesTrak's lists of active satellites and of a few debris clouds; dead
+   satellites and spent rocket stages, the heavy objects that cannot dodge, are mostly not in it.
+   Working satellites usually move out of the way of tracked debris. So the count measures how
+   much crossing traffic a cloud makes, not collisions to come, and the page says so beside it.
+2. **The targets are frozen** where they are today for the whole century.
+3. **Only the first step is taken.** The pieces of a later collision are not made or followed.
+4. **Pieces under 10 cm are left out.** They are far more numerous and can still wreck a satellite.
+5. The spread between repetitions is small because it reflects only the random make-up of the
+   cloud. The larger uncertainty is in the assumptions above, and is not shown by the range.
+
+**Published long-term studies: what was and was not compared.** The brief asks for the trends to
+be checked against published long-term studies. No like-for-like check was possible, and I have
+not made one up:
+
+- Liou and Johnson, "Risks in space from orbiting debris" (_Science_ 311, 340, 2006; NASA NTRS
+  20080029282), with no launches after 2004, found on average 18.2 collisions among objects of
+  10 cm and more in 200 years (10.8 of them catastrophic), from fifty repetitions, with the
+  region from 900 to 1,000 km the most unstable. That study evolves the whole population of
+  tracked objects, including the derelicts this site's data lacks, and feeds each collision's
+  pieces back in. This simulation follows one cloud against a frozen background of mostly working
+  satellites. The two numbers measure different things.
+- What does agree is the direction: debris made at 800 to 900 km mostly outlasts a century here,
+  and debris made at 480 km is gone in a few years, which is why the long-term studies find the
+  high region unstable and the low one self-cleaning.
+- An order-of-magnitude check on the rate formula: 18.2 collisions in 200 years is about 0.09 a
+  year among roughly ten thousand objects. In the two-satellite preset here, 0.32 hits come from
+  about 60,000 fragment-years in orbit, or about 5 × 10⁻⁶ hits per fragment per year. Ten thousand
+  objects each hitting at that rate, with each pair counted once, would give about 0.03 a year.
+  That is the same order of magnitude as the published rate, but the targets are different
+  populations (today's working satellites here, the objects of 2004 there), so this is too rough
+  to be called a validation.
+
+**Not done:** follow-on collisions were not simulated as events (no Poisson draws, no second
+generation). "Cascade statistics with Monte Carlo ranges" in the brief is met only as expected
+numbers of first-generation hits with the range across repetitions. A cascade that feeds on its
+own debris would need the missing derelict population first.
+
+**Result: the arithmetic is verified; the numbers are illustrative and labelled so.**
+
+### V6.6 Build and browser checks at the end of Phase 6
+
+- **Date:** 2026-11-15
+- **Reproduce:** `npm run check`, then `PW_CHROMIUM_PATH=/usr/bin/google-chrome npm run e2e`
+
+| Check                                                                         | Result                                                |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Formatting, lint, type-check                                                  | clean                                                 |
+| Unit and validation tests                                                     | 499 passed in 50 files                                |
+| Browser tests, desktop and phone-sized Chromium                               | 105 passed, 1 skipped (a touch-only test, on desktop) |
+| First download, gzip                                                          | 182.1 kB of a 300 kB budget (179.8 kB before Phase 6) |
+| "What if?" code, fetched when the tab is first opened, gzip                   | 9.0 kB                                                |
+| The simulation's background thread, fetched when a run is first started, gzip | 4.1 kB                                                |
+
+The first download grew by 2.3 kB because the fragment layer uses two pieces of three.js that the
+tracker did not, and they are bundled with the rest of three.js.
+
+**In a browser, against the real catalog** (headless Chrome on the build machine with software
+rendering, the catalog of 2026-11-15, 19,572 objects):
+
+| Run                                                | First cloud on the globe | All twelve repetitions | Page errors |
+| -------------------------------------------------- | ------------------------ | ---------------------- | ----------- |
+| Two satellites collide (1,194 pieces), desktop     | 2.8 s                    | 8.1 s                  | none        |
+| Rocket stage and satellite (2,535 pieces), desktop | 3.4 s                    | 17.7 s                 | none        |
+| Rocket stage explodes (238 pieces), phone-sized    | 2.2 s                    | 3.2 s                  | none        |
+| Low satellite hit (1,364 pieces), phone-sized      | 3.0 s                    | 7.6 s                  | none        |
+
+These times include starting the background thread and are from a desktop processor; a phone
+will be several times slower. The results shown in the page agreed with V6.5 (for the made-up
+collision, 0.48 hits expected in 100 years against 0.49 from the test fixture, which rounds the
+counts in each shell). Screenshots were looked at for the two-satellite run at one minute, six
+hours, three days and ten years after: two clumps, then two arcs, then two rings crossing, then
+a shell, as in published pictures of the 2009 collision. The frame rate with a cloud on show was
+not measured.
+
+**What the browser tests cover** (`e2e/whatif.spec.ts`, five tests on each of two screen sizes):
+a run from start to finish with its labels and caveat; the time control, Play and Clear; a
+collision's speed and outcome and the comparison with the real event; the object selected in the
+tracker, including a collision too weak to destroy it; leaving the tab and returning. They check
+that the mode works and says what it should. They do not check its numbers.
