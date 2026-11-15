@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { mergeCatalog, type SourceUpdate } from '../../pipeline/merge';
+import { mergeCatalog, type MetadataUpdate, type SourceUpdate } from '../../pipeline/merge';
 import { parseOmmCsv, type ElementSet } from '../../pipeline/omm';
+import type { SatcatRecord } from '../../pipeline/satcat';
 import type { SourceDefinition } from '../../pipeline/sources';
 import { verificationSetAsOmmCsv } from './fixtureCsv';
 
@@ -145,5 +146,97 @@ describe('mergeCatalog', () => {
     expect(() => mergeCatalog(null, updates({ zzz: { sets: pick(5), at: T1 } }), [A], T1)).toThrow(
       /unknown source "zzz"/,
     );
+  });
+});
+
+describe('mergeCatalog: descriptive fields', () => {
+  const META: SourceDefinition = { ...definition('meta'), kind: 'satcat' };
+  /** Invented values in the documented codes; they describe no real object. */
+  const fields = (noradId: number, owner: string): SatcatRecord => ({
+    noradId,
+    objectType: 'PAY',
+    opsStatus: '+',
+    owner,
+    launchDate: '2000-01-01',
+  });
+  const metadata = (
+    records: SatcatRecord[] | null,
+    at = T1,
+  ): { definitions: SourceDefinition[]; updates: Map<string, MetadataUpdate> } => ({
+    definitions: [META],
+    updates: new Map(records === null ? [] : [['meta', { records, fetchedAt: at }]]),
+  });
+  const first = mergeCatalog(
+    null,
+    updates({ a: { sets: pick(5, 4632, 6251), at: T1 } }),
+    [A],
+    T1,
+    // 4632 is not covered; 99999 is not in the catalog.
+    metadata([fields(5, 'US'), fields(6251, 'CIS'), fields(99999, 'PRC')]),
+  );
+
+  it('attaches fields to the objects they describe and leaves the rest blank', () => {
+    expect(first.records.map((record) => record.noradId)).toEqual([5, 4632, 6251]);
+    expect(first.metadata?.owner).toEqual(['US', '', 'CIS']);
+    expect(first.metadata?.objectType).toEqual(['PAY', '', 'PAY']);
+    expect(first.metadata?.launchDate).toEqual(['2000-01-01', '', '2000-01-01']);
+    expect(first.metadata?.sources).toEqual([
+      { id: 'meta', label: 'META', provider: 'TEST', fetchedAt: T1, objectCount: 3 },
+    ]);
+  });
+
+  it('never adds an object to the catalog', () => {
+    expect(first.records.some((record) => record.noradId === 99999)).toBe(false);
+  });
+
+  it('keeps the previous fields when no new descriptive data arrives', () => {
+    const second = mergeCatalog(
+      first,
+      updates({ a: { sets: pick(4632, 6251, 8195), at: T2 } }),
+      [A],
+      T2,
+      metadata(null),
+    );
+    // 5 has gone; 8195 is new and has not been looked up yet.
+    expect(second.records.map((record) => record.noradId)).toEqual([4632, 6251, 8195]);
+    expect(second.metadata?.owner).toEqual(['', 'CIS', '']);
+    expect(second.metadata?.sources[0]).toMatchObject({ fetchedAt: T1, objectCount: 3 });
+  });
+
+  it('lets new descriptive data replace old, object by object', () => {
+    const second = mergeCatalog(
+      first,
+      new Map(),
+      [A],
+      T2,
+      metadata([fields(4632, 'ESA'), fields(6251, 'US')], T2),
+    );
+    expect(second.records).toEqual(first.records);
+    // 5 is not in the new download and keeps what it had.
+    expect(second.metadata?.owner).toEqual(['US', 'ESA', 'US']);
+    expect(second.metadata?.sources[0]).toMatchObject({ fetchedAt: T2, objectCount: 2 });
+  });
+
+  it('records nothing when no descriptive data has ever been downloaded', () => {
+    const catalog = mergeCatalog(
+      null,
+      updates({ a: { sets: pick(5), at: T1 } }),
+      [A],
+      T1,
+      metadata(null),
+    );
+    expect(catalog.metadata).toBeUndefined();
+    expect(mergeCatalog(null, updates({ a: { sets: pick(5), at: T1 } }), [A], T1).metadata).toBe(
+      undefined,
+    );
+  });
+
+  it('refuses descriptive data for a source that is not defined', () => {
+    expect(() =>
+      mergeCatalog(null, new Map(), [A], T1, {
+        definitions: [META],
+        updates: new Map([['other', { records: [], fetchedAt: T1 }]]),
+      }),
+    ).toThrow(/unknown source "other"/);
   });
 });

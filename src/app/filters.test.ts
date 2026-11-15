@@ -131,3 +131,62 @@ describe('countFilterOptions', () => {
     expect(counts.regimes.get('HEO')).toBe(0);
   });
 });
+
+describe('filters that need satellite-catalog fields', () => {
+  /** Invented values in the documented codes, attached to the made-up catalog above. */
+  const withMetadata = buildObjectIndex(
+    {
+      ...catalog,
+      metadata: {
+        sources: [],
+        objectType: ['PAY', 'PAY', 'PAY', 'PAY', 'DEB', 'R/B', ''],
+        opsStatus: ['+', '+', '+', '+', '', '', ''],
+        owner: ['US', 'US', 'US', 'ESA', 'PRC', 'CIS', ''],
+        launchDate: ['', '', '', '', '', '', ''],
+      },
+    },
+    objects.orbits,
+  );
+  const passingWith = (state: Partial<FilterState>): number[] => {
+    const out = new Uint8Array(withMetadata.count);
+    applyFilters(withMetadata, { ...NO_FILTERS, ...state }, out);
+    return [...out].flatMap((value, index) => (value === 1 ? [index] : []));
+  };
+
+  it('filters by kind of object, including "nothing on record"', () => {
+    expect(passingWith({ types: new Set(['DEB']) })).toEqual([4]);
+    expect(passingWith({ types: new Set(['DEB', 'R/B']) })).toEqual([4, 5]);
+    expect(passingWith({ types: new Set(['']) })).toEqual([6]);
+  });
+
+  it('filters by owner', () => {
+    expect(passingWith({ owner: 'US' })).toEqual([0, 1, 2]);
+    expect(passingWith({ owner: 'ESA', types: new Set(['PAY']) })).toEqual([3]);
+    expect(passingWith({ owner: 'JPN' })).toEqual([]);
+    expect(isFilterActive({ ...NO_FILTERS, owner: 'US' })).toBe(true);
+    expect(isFilterActive({ ...NO_FILTERS, types: new Set(['PAY']) })).toBe(true);
+  });
+
+  it('counts the objects behind each kind and owner', () => {
+    const counts = countFilterOptions(withMetadata);
+    expect([...counts.types.entries()].sort()).toEqual([
+      ['', 1],
+      ['DEB', 1],
+      ['PAY', 4],
+      ['R/B', 1],
+    ]);
+    expect([...counts.owners.entries()].sort()).toEqual([
+      ['CIS', 1],
+      ['ESA', 1],
+      ['PRC', 1],
+      ['US', 3],
+    ]);
+  });
+
+  it('ignores both questions for a catalog that has no such fields', () => {
+    expect(passing({ types: new Set(['DEB']), owner: 'US' })).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    const counts = countFilterOptions(objects);
+    expect(counts.types.size).toBe(0);
+    expect(counts.owners.size).toBe(0);
+  });
+});

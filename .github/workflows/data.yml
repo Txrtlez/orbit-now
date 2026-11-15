@@ -1,7 +1,7 @@
 name: Update orbital data
 
-# Downloads orbital element sets from CelesTrak, checks them, and publishes the
-# result for the site to use.
+# Downloads orbital element sets and satellite catalog records from CelesTrak,
+# checks them, and publishes the result for the site to use.
 #
 # CelesTrak's usage policy (http://celestrak.org/usage-policy.php) governs how
 # this workflow behaves:
@@ -11,6 +11,10 @@ name: Update orbital data
 #   data typically changes, and the pipeline itself refuses to ask for any
 #   data set it requested less than 2 hours 5 minutes earlier. That second
 #   rule is what makes the manual "Run workflow" button safe to press.
+# - The satellite catalog (SATCAT: what each object is, who owns it, when it
+#   was launched) is updated by hand once or twice a day. The pipeline asks
+#   for it at most once in 22 hours, after the orbital elements, so that a
+#   refusal there cannot hold the elements back.
 # - On any response other than HTTP 200 the pipeline stops and does not retry.
 #   The previously published data stays in place.
 #

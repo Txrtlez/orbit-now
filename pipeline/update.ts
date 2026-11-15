@@ -1,7 +1,8 @@
 import type { Catalog } from '../src/catalog/format';
 import { fetchSource, type FetchFunction } from './fetch';
-import { mergeCatalog, type SourceUpdate } from './merge';
+import { mergeCatalog, type MetadataUpdate, type SourceUpdate } from './merge';
 import { parseOmmCsv, type RejectionReason } from './omm';
+import { parseSatcatCsv, type SatcatRejectionReason } from './satcat';
 import type { SourceDefinition } from './sources';
 
 /**
@@ -22,7 +23,10 @@ import type { SourceDefinition } from './sources';
  */
 export const MINIMUM_REQUEST_INTERVAL_MS = (2 * 60 + 5) * 60_000;
 
-/** A source whose last successful download is older than this needs a human's attention. */
+/**
+ * A source whose last successful download is older than this needs a
+ * human's attention, unless the source sets its own limit.
+ */
 export const STALE_AFTER_MS = 48 * 3_600_000;
 
 /**
@@ -39,13 +43,18 @@ const MIN_FRACTION_OF_PREVIOUS = 0.75;
 /** ...unless the source was small to begin with, where large relative swings are normal. */
 const SHRINK_GUARD_MIN_PREVIOUS = 100;
 
+/** Any reason a row can be left out, from either kind of source. */
+type AnyRejectionReason = RejectionReason | SatcatRejectionReason;
+
 /** Rejection reasons that point to a broken file, as opposed to a legitimately excluded object. */
-const MALFORMED_REASONS: readonly RejectionReason[] = [
+const MALFORMED_REASONS: readonly AnyRejectionReason[] = [
   'missing-field',
   'not-a-number',
   'bad-epoch',
   'future-epoch',
   'out-of-range',
+  'bad-code',
+  'bad-date',
 ];
 
 /** Result of the most recent request for a source. */
@@ -67,7 +76,7 @@ export interface SourceStatus {
   /** Element sets from the last accepted download that passed every check. */
   readonly acceptedCount: number;
   /** Rows left out of the last accepted download, by reason. */
-  readonly rejected: Readonly<Partial<Record<RejectionReason, number>>>;
+  readonly rejected: Readonly<Partial<Record<AnyRejectionReason, number>>>;
 }
 
 export const STATUS_FORMAT = 'orbit-now-pipeline-status';
@@ -143,7 +152,10 @@ export async function runUpdate(options: RunOptions): Promise<RunResult> {
     (previousStatus?.sources ?? []).map((source) => [source.id, source]),
   );
 
+  const elementDefinitions = definitions.filter((definition) => definition.kind !== 'satcat');
+  const metadataDefinitions = definitions.filter((definition) => definition.kind === 'satcat');
   const updates = new Map<string, SourceUpdate>();
+  const metadataUpdates = new Map<string, MetadataUpdate>();
   const statuses: SourceStatus[] = [];
   const report: RunReportEntry[] = [];
   const alerts: string[] = [];
@@ -166,7 +178,7 @@ export async function runUpdate(options: RunOptions): Promise<RunResult> {
     const nowMs = options.now().getTime();
     if (previous.lastRequestAt !== null) {
       const sinceLastMs = nowMs - Date.parse(previous.lastRequestAt);
-      if (sinceLastMs < MINIMUM_REQUEST_INTERVAL_MS) {
+      if (sinceLastMs < (definition.minimumIntervalMs ?? MINIMUM_REQUEST_INTERVAL_MS)) {
         statuses.push(previous);
         report.push({
           id: definition.id,
@@ -206,11 +218,39 @@ export async function runUpdate(options: RunOptions): Promise<RunResult> {
 
     options.onDownloaded?.(definition.id, outcome.body);
 
-    // Decide whether the download can be trusted.
+    // Decide whether the download can be trusted. The same three tests
+    // apply to both kinds of source; only the reading of the rows differs.
+    const isMetadata = definition.kind === 'satcat';
+    const what = isMetadata ? 'catalog records' : 'element sets';
     let problem: string | null = null;
-    let parsed: ReturnType<typeof parseOmmCsv> | null = null;
+    let parsed: {
+      readonly rowCount: number;
+      readonly accepted: number;
+      readonly rejected: Readonly<Partial<Record<AnyRejectionReason, number>>>;
+      readonly apply: () => void;
+    } | null = null;
     try {
-      parsed = parseOmmCsv(outcome.body, Date.parse(requestAt));
+      if (isMetadata) {
+        const satcat = parseSatcatCsv(outcome.body);
+        parsed = {
+          rowCount: satcat.rowCount,
+          accepted: satcat.records.length,
+          rejected: satcat.rejected,
+          apply: () => {
+            metadataUpdates.set(definition.id, { records: satcat.records, fetchedAt: requestAt });
+          },
+        };
+      } else {
+        const omm = parseOmmCsv(outcome.body, Date.parse(requestAt));
+        parsed = {
+          rowCount: omm.rowCount,
+          accepted: omm.elementSets.length,
+          rejected: omm.rejected,
+          apply: () => {
+            updates.set(definition.id, { elementSets: omm.elementSets, fetchedAt: requestAt });
+          },
+        };
+      }
     } catch (error: unknown) {
       problem = error instanceof Error ? error.message : String(error);
     }
@@ -220,9 +260,9 @@ export async function runUpdate(options: RunOptions): Promise<RunResult> {
         (sum, reason) => sum + (rejectedCounts[reason] ?? 0),
         0,
       );
-      const accepted = parsed.elementSets.length;
+      const { accepted } = parsed;
       if (accepted < definition.minimumObjects) {
-        problem = `Only ${String(accepted)} valid element sets; at least ${String(definition.minimumObjects)} expected.`;
+        problem = `Only ${String(accepted)} valid ${what}; at least ${String(definition.minimumObjects)} expected.`;
       } else if (
         malformed >= MIN_MALFORMED_ROWS_TO_DISTRUST &&
         malformed > MAX_MALFORMED_FRACTION * parsed.rowCount
@@ -232,7 +272,7 @@ export async function runUpdate(options: RunOptions): Promise<RunResult> {
         previous.acceptedCount >= SHRINK_GUARD_MIN_PREVIOUS &&
         accepted < MIN_FRACTION_OF_PREVIOUS * previous.acceptedCount
       ) {
-        problem = `Valid element sets fell from ${String(previous.acceptedCount)} to ${String(accepted)}.`;
+        problem = `Valid ${what} fell from ${String(previous.acceptedCount)} to ${String(accepted)}.`;
       }
     }
 
@@ -253,8 +293,8 @@ export async function runUpdate(options: RunOptions): Promise<RunResult> {
       continue;
     }
 
-    updates.set(definition.id, { elementSets: parsed.elementSets, fetchedAt: requestAt });
-    const detail = `${String(parsed.elementSets.length)} element sets accepted from ${String(parsed.rowCount)} rows.`;
+    parsed.apply();
+    const detail = `${String(parsed.accepted)} ${what} accepted from ${String(parsed.rowCount)} rows.`;
     statuses.push({
       id: definition.id,
       lastRequestAt: requestAt,
@@ -262,7 +302,7 @@ export async function runUpdate(options: RunOptions): Promise<RunResult> {
       lastOutcome: 'ok',
       lastDetail: detail,
       rowCount: parsed.rowCount,
-      acceptedCount: parsed.elementSets.length,
+      acceptedCount: parsed.accepted,
       rejected: parsed.rejected,
     });
     report.push({ id: definition.id, action: 'updated', detail });
@@ -270,15 +310,29 @@ export async function runUpdate(options: RunOptions): Promise<RunResult> {
 
   const generatedAt = options.now().toISOString();
   const catalog =
-    updates.size > 0 ? mergeCatalog(previousCatalog, updates, definitions, generatedAt) : null;
+    updates.size > 0 || metadataUpdates.size > 0
+      ? mergeCatalog(previousCatalog, updates, elementDefinitions, generatedAt, {
+          definitions: metadataDefinitions,
+          updates: metadataUpdates,
+        })
+      : null;
 
   // Staleness: even when nothing went wrong in this run, data that has not
   // been refreshed for a long time must not go unnoticed.
   const nowMs = options.now().getTime();
   for (const status of statuses) {
+    const definition = definitions.find((candidate) => candidate.id === status.id);
     if (status.lastSuccessAt === null) {
-      alerts.push(`${status.id}: has never been downloaded successfully.`);
-    } else if (nowMs - Date.parse(status.lastSuccessAt) > STALE_AFTER_MS) {
+      // Descriptive data that has simply not been asked for yet (because the
+      // run stopped before reaching it) is not a fault: the site works
+      // without it. Orbital elements that have never arrived always are.
+      if (definition?.kind !== 'satcat' || status.lastRequestAt !== null) {
+        alerts.push(`${status.id}: has never been downloaded successfully.`);
+      }
+    } else if (
+      nowMs - Date.parse(status.lastSuccessAt) >
+      (definition?.staleAfterMs ?? STALE_AFTER_MS)
+    ) {
       const hours = Math.round((nowMs - Date.parse(status.lastSuccessAt)) / 3_600_000);
       alerts.push(`${status.id}: last successful download was ${String(hours)} hours ago.`);
     }
@@ -361,10 +415,10 @@ export function decodeStatus(text: string): PipelineStatus {
     ) {
       throw new Error('Pipeline status source entry has missing or mistyped fields');
     }
-    const rejectedCounts: Partial<Record<RejectionReason, number>> = {};
+    const rejectedCounts: Partial<Record<AnyRejectionReason, number>> = {};
     for (const [reason, count] of Object.entries(rejected)) {
       if (typeof count === 'number') {
-        rejectedCounts[reason as RejectionReason] = count;
+        rejectedCounts[reason as AnyRejectionReason] = count;
       }
     }
     return {

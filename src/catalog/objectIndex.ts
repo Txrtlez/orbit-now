@@ -1,7 +1,7 @@
 import { classifyRegime, parseDesignator, REGIMES, type Regime } from '../orbit/elements';
 import type { OrbitSummary } from '../orbit/propagate';
 import { CATEGORIES, categoryOf, OTHER_CATEGORY, type Category } from './categories';
-import { epochToUnixMs, type Catalog, type CatalogRecord } from './format';
+import { epochToUnixMs, type Catalog, type CatalogMetadata, type CatalogRecord } from './format';
 
 /**
  * Everything the interface needs to know about each object beyond its
@@ -22,6 +22,12 @@ export interface ObjectIndex {
   readonly launchYear: Uint16Array;
   /** Each element set's epoch, in milliseconds since 1970-01-01 UTC. */
   readonly epochMs: Float64Array;
+  /**
+   * Descriptive fields from the satellite catalog (object type, owner,
+   * launch date, status), one entry per object, or null if this catalog
+   * carries none. An empty string means nothing is known for that object.
+   */
+  readonly metadata: CatalogMetadata | null;
   /** Earliest and latest launch year present, or null if no designator could be read. */
   readonly launchYearRange: readonly [number, number] | null;
   /** Position of the object with this catalog number, or -1. */
@@ -81,6 +87,7 @@ export function buildObjectIndex(catalog: Catalog, orbits: OrbitSummary): Object
     regime,
     launchYear,
     epochMs,
+    metadata: catalog.metadata ?? null,
     launchYearRange: firstYear <= lastYear ? [firstYear, lastYear] : null,
     indexOfNoradId: (noradId) => byNoradId.get(noradId) ?? -1,
   };

@@ -72,6 +72,32 @@ export interface CatalogSource {
   readonly objectCount: number;
 }
 
+/**
+ * What each object is, as opposed to where it is: descriptive fields from a
+ * satellite catalog (SATCAT), kept apart from the orbital elements because
+ * they come from a different data set on a different schedule.
+ *
+ * REAL DATA. Every value is the text the source published, unaltered. An
+ * empty string means the source had nothing for that object, or that the
+ * object has not been looked up yet. Each array has one entry per record,
+ * in the same order as the catalog's records.
+ */
+export interface CatalogMetadata {
+  /** The data sets these fields came from. `objectCount` is the number of rows accepted from each. */
+  readonly sources: readonly CatalogSource[];
+  /** Kind of object, as the source codes it: "PAY", "R/B", "DEB" or "UNK". */
+  readonly objectType: readonly string[];
+  /** Operational status code, e.g. "+" for operational. */
+  readonly opsStatus: readonly string[];
+  /** Code of the owning country or organisation, e.g. "US". */
+  readonly owner: readonly string[];
+  /** Launch date as YYYY-MM-DD. */
+  readonly launchDate: readonly string[];
+}
+
+/** The descriptive fields, by name. Used to treat the four columns uniformly. */
+export const METADATA_COLUMNS = ['objectType', 'opsStatus', 'owner', 'launchDate'] as const;
+
 export interface Catalog {
   /** When this file was written (ISO 8601, UTC). */
   readonly generatedAt: string;
@@ -79,6 +105,12 @@ export interface Catalog {
   readonly sources: readonly CatalogSource[];
   /** One record per object, in ascending order of catalog number. */
   readonly records: readonly CatalogRecord[];
+  /**
+   * Descriptive fields for the same objects, if any have been downloaded.
+   * Absent in catalogs written before these fields existed; readers must
+   * work without it.
+   */
+  readonly metadata?: CatalogMetadata;
 }
 
 /** The shape of the JSON document on disk. */
@@ -103,6 +135,14 @@ interface CatalogFile {
     bstar: number[];
     sourceMask: number[];
   };
+  /**
+   * Optional, and added after version 1 was first published. Older readers
+   * ignore keys they do not know, so adding it did not need a new version.
+   */
+  metadata?: {
+    sources: CatalogSource[];
+    columns: Record<(typeof METADATA_COLUMNS)[number], string[]>;
+  };
 }
 
 const NUMBER_COLUMNS = [
@@ -123,7 +163,19 @@ const STRING_COLUMNS = ['name', 'objectId'] as const;
 
 /** Serialise a catalog to JSON text. Records are written in ascending catalog-number order. */
 export function encodeCatalog(catalog: Catalog): string {
-  const records = [...catalog.records].sort((a, b) => a.noradId - b.noradId);
+  // Sort by catalog number, remembering where each record was, so that the
+  // descriptive fields (which are matched to records by position) follow.
+  const order = catalog.records
+    .map((record, position) => ({ record, position }))
+    .sort((a, b) => a.record.noradId - b.record.noradId);
+  const records = order.map((entry) => entry.record);
+  const { metadata } = catalog;
+  if (
+    metadata !== undefined &&
+    METADATA_COLUMNS.some((column) => metadata[column].length !== catalog.records.length)
+  ) {
+    throw new RangeError('Catalog metadata must have exactly one entry per record');
+  }
   const file: CatalogFile = {
     format: CATALOG_FORMAT,
     version: CATALOG_VERSION,
@@ -145,6 +197,19 @@ export function encodeCatalog(catalog: Catalog): string {
       bstar: records.map((record) => record.bstar),
       sourceMask: records.map((record) => record.sourceMask),
     },
+    ...(metadata === undefined
+      ? {}
+      : {
+          metadata: {
+            sources: metadata.sources.map((source) => ({ ...source })),
+            columns: {
+              objectType: order.map((entry) => metadata.objectType[entry.position] ?? ''),
+              opsStatus: order.map((entry) => metadata.opsStatus[entry.position] ?? ''),
+              owner: order.map((entry) => metadata.owner[entry.position] ?? ''),
+              launchDate: order.map((entry) => metadata.launchDate[entry.position] ?? ''),
+            },
+          },
+        }),
   };
   return JSON.stringify(file);
 }
@@ -256,7 +321,22 @@ export function decodeCatalog(text: string): Catalog {
       sourceMask: numbers.sourceMask[i] ?? 0,
     });
   }
-  return { generatedAt, sources: sources.map(readSource), records };
+  const base = { generatedAt, sources: sources.map(readSource), records };
+  if (parsed.metadata === undefined) {
+    return base;
+  }
+  const { metadata } = parsed;
+  if (!isObject(metadata) || !Array.isArray(metadata.sources) || !isObject(metadata.columns)) {
+    throw new Error('Catalog "metadata" is present but malformed');
+  }
+  const metadataColumns = metadata.columns;
+  const descriptive = Object.fromEntries(
+    METADATA_COLUMNS.map((key) => [key, readStringColumn(metadataColumns, key, count)]),
+  ) as Record<(typeof METADATA_COLUMNS)[number], string[]>;
+  return {
+    ...base,
+    metadata: { sources: metadata.sources.map(readSource), ...descriptive },
+  };
 }
 
 /**

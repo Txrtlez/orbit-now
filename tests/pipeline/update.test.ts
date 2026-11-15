@@ -11,6 +11,7 @@ import {
   type RunResult,
 } from '../../pipeline/update';
 import { FIXTURE_ACCEPTED, OMM_CSV_HEADER, verificationSetAsOmmCsv } from './fixtureCsv';
+import { satcatDocument, satcatRow } from './satcatFixture';
 
 const fullCsv = verificationSetAsOmmCsv();
 const csvLines = fullCsv.trim().split('\r\n');
@@ -334,6 +335,185 @@ describe('runUpdate: staleness', () => {
       'small: last successful download was 49 hours ago.',
       'big: last successful download was 49 hours ago.',
     ]);
+  });
+});
+
+describe('runUpdate: descriptive data (SATCAT)', () => {
+  const HOUR = 3_600_000;
+  const META: SourceDefinition = {
+    kind: 'satcat',
+    id: 'meta',
+    label: 'Catalog records',
+    provider: 'TEST',
+    url: 'https://example.invalid/meta',
+    minimumObjects: 2,
+    minimumIntervalMs: 22 * HOUR,
+    staleAfterMs: 96 * HOUR,
+  };
+  const WITH_META = [SMALL, BIG, META];
+  // Invented rows: three objects that are in the fixture catalog and one that is not.
+  const META_BODY = satcatDocument(
+    satcatRow(5, 'PAY', '+', 'US', '1958-03-17'),
+    satcatRow(4632, 'R/B', '', 'US', '1970-11-06'),
+    satcatRow(6251, 'DEB', '', 'US', '1962-06-19'),
+    satcatRow(99999, 'PAY', '-', 'PRC', '2020-01-07'),
+  );
+  const OK_WITH_META = { ...OK, [META.url]: { status: 200, body: META_BODY } };
+  const ownerOf = (result: RunResult, noradId: number): string | undefined => {
+    const index = result.catalog?.records.findIndex((record) => record.noradId === noradId) ?? -1;
+    return result.catalog?.metadata?.owner[index];
+  };
+  const typeOf = (result: RunResult, noradId: number): string | undefined => {
+    const index = result.catalog?.records.findIndex((record) => record.noradId === noradId) ?? -1;
+    return result.catalog?.metadata?.objectType[index];
+  };
+
+  it('is requested after the orbital elements and attached to the objects it describes', async () => {
+    const { result, calls } = await run(OK_WITH_META, { definitions: WITH_META });
+    expect(calls).toEqual([SMALL.url, BIG.url, META.url]);
+    expect(result.alerts).toEqual([]);
+    // The catalog's objects are exactly those of the orbital elements.
+    expect(result.catalog?.records).toHaveLength(FIXTURE_ACCEPTED);
+    expect(result.catalog?.sources.map((source) => source.id)).toEqual(['small', 'big']);
+    expect(typeOf(result, 5)).toBe('PAY');
+    expect(typeOf(result, 4632)).toBe('R/B');
+    expect(typeOf(result, 6251)).toBe('DEB');
+    // An object the descriptive data does not cover has blank fields.
+    expect(typeOf(result, 8195)).toBe('');
+    expect(result.catalog?.metadata?.sources).toEqual([
+      {
+        id: 'meta',
+        label: 'Catalog records',
+        provider: 'TEST',
+        fetchedAt: new Date(START).toISOString(),
+        objectCount: 4,
+      },
+    ]);
+    expect(result.status.sources[2]).toMatchObject({
+      id: 'meta',
+      lastOutcome: 'ok',
+      lastDetail: '4 catalog records accepted from 4 rows.',
+      acceptedCount: 4,
+    });
+  });
+
+  it('is requested at most once in 22 hours, while orbital elements are requested every time', async () => {
+    const first = await run(OK_WITH_META, { definitions: WITH_META });
+    const carry = (previous: RunResult): Partial<RunOptions> => ({
+      definitions: WITH_META,
+      previousCatalog: previous.catalog,
+      previousStatus: previous.status,
+    });
+
+    const eightHoursOn = await run(OK, carry(first.result), START + 8 * HOUR);
+    expect(eightHoursOn.calls).toEqual([SMALL.url, BIG.url]);
+    expect(eightHoursOn.result.report[2]).toMatchObject({ id: 'meta', action: 'skipped-too-soon' });
+    // The fields downloaded earlier are carried into the new catalog.
+    expect(ownerOf(eightHoursOn.result, 5)).toBe('US');
+    expect(eightHoursOn.result.alerts).toEqual([]);
+
+    const sixteenHoursOn = await run(OK, carry(eightHoursOn.result), START + 16 * HOUR);
+    expect(sixteenHoursOn.calls).toEqual([SMALL.url, BIG.url]);
+
+    const aDayOn = await run(OK_WITH_META, carry(sixteenHoursOn.result), START + 24 * HOUR);
+    expect(aDayOn.calls).toEqual([SMALL.url, BIG.url, META.url]);
+  });
+
+  it('does not hold back the orbital elements when it is refused', async () => {
+    const first = await run(OK_WITH_META, { definitions: WITH_META });
+    const second = await run(
+      { ...OK, [META.url]: { status: 403, body: 'Forbidden' } },
+      {
+        definitions: WITH_META,
+        previousCatalog: first.result.catalog,
+        previousStatus: first.result.status,
+      },
+      START + 24 * HOUR,
+    );
+    // New orbital elements are published, with the descriptive fields kept from before.
+    expect(second.result.catalog?.generatedAt).toBe(new Date(START + 24 * HOUR).toISOString());
+    expect(second.result.catalog?.records).toHaveLength(FIXTURE_ACCEPTED);
+    expect(ownerOf(second.result, 5)).toBe('US');
+    expect(second.result.catalog?.metadata?.sources[0]?.fetchedAt).toBe(
+      new Date(START).toISOString(),
+    );
+    expect(second.result.alerts).toEqual(['meta: request failed (HTTP 403: Forbidden)']);
+    expect(second.result.status.sources[2]).toMatchObject({
+      lastOutcome: 'refused',
+      lastSuccessAt: new Date(START).toISOString(),
+    });
+  });
+
+  it('is not requested at all once an earlier request in the run has been refused', async () => {
+    const { result, calls } = await run(
+      { [SMALL.url]: { status: 403, body: NOT_UPDATED_BODY } },
+      { definitions: WITH_META },
+    );
+    expect(calls).toEqual([SMALL.url]);
+    expect(result.report[2]).toMatchObject({ id: 'meta', action: 'skipped-after-stop' });
+    // It has not been asked for yet, which is not a fault in itself.
+    expect(result.alerts.some((alert) => alert.startsWith('meta:'))).toBe(false);
+  });
+
+  it('rejects a reply that is not SATCAT CSV, and says so', async () => {
+    const { result } = await run(
+      { ...OK, [META.url]: { status: 200, body: '[{"OBJECT_NAME":"X","NORAD_CAT_ID":5}]' } },
+      { definitions: WITH_META },
+    );
+    expect(result.catalog?.records).toHaveLength(FIXTURE_ACCEPTED);
+    expect(result.catalog?.metadata).toBeUndefined();
+    expect(result.status.sources[2]?.lastOutcome).toBe('invalid');
+    expect(result.alerts).toEqual([
+      expect.stringMatching(/^meta: download rejected \(/),
+      'meta: has never been downloaded successfully.',
+    ]);
+  });
+
+  it('rejects a download with fewer records than the source requires', async () => {
+    const { result } = await run(
+      {
+        ...OK,
+        [META.url]: { status: 200, body: satcatDocument(satcatRow(5, 'PAY', '+', 'US', '')) },
+      },
+      { definitions: WITH_META },
+    );
+    expect(result.status.sources[2]?.lastDetail).toBe(
+      'Only 1 valid catalog records; at least 2 expected.',
+    );
+    expect(result.catalog?.metadata).toBeUndefined();
+  });
+
+  it('refreshes the fields on their own when the orbital elements are not due', async () => {
+    const first = await run(OK, { definitions: [SMALL, BIG] });
+    // An hour later the descriptive source is added. The elements were asked
+    // for an hour ago and must not be asked for again.
+    const second = await run(
+      { [META.url]: { status: 200, body: META_BODY } },
+      {
+        definitions: WITH_META,
+        previousCatalog: first.result.catalog,
+        previousStatus: first.result.status,
+      },
+      START + HOUR,
+    );
+    expect(second.calls).toEqual([META.url]);
+    expect(second.result.catalog?.records).toEqual(first.result.catalog?.records);
+    expect(second.result.catalog?.sources).toEqual(first.result.catalog?.sources);
+    expect(ownerOf(second.result, 5)).toBe('US');
+  });
+
+  it('is allowed to go four days without a refresh before anyone is alerted', async () => {
+    const first = await run(OK_WITH_META, { definitions: WITH_META });
+    const carry = {
+      definitions: WITH_META,
+      previousCatalog: first.result.catalog,
+      previousStatus: first.result.status,
+    };
+    const refusal = { ...OK, [META.url]: { status: 403, body: NOT_UPDATED_BODY } };
+    const threeDaysOn = await run(refusal, carry, START + 72 * HOUR);
+    expect(threeDaysOn.result.alerts).toEqual([]);
+    const fiveDaysOn = await run(refusal, carry, START + 120 * HOUR);
+    expect(fiveDaysOn.result.alerts).toEqual(['meta: last successful download was 120 hours ago.']);
   });
 });
 

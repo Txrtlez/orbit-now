@@ -15,7 +15,14 @@
  */
 
 export interface SourceDefinition {
-  /** Stable identifier. Also the CelesTrak group name. */
+  /**
+   * What the source provides. "gp" (the default) is orbital elements; the
+   * objects it lists make up the catalog. "satcat" is descriptive data
+   * (object type, owner, launch date) about objects already in the catalog;
+   * it never adds or removes objects.
+   */
+  readonly kind?: 'gp' | 'satcat';
+  /** Stable identifier. For orbital elements, also the CelesTrak group name. */
   readonly id: string;
   /** Description shown to viewers. Uses CelesTrak's own wording for the group. */
   readonly label: string;
@@ -28,6 +35,17 @@ export interface SourceDefinition {
    * response with fewer is treated as truncated or wrong and is not used.
    */
   readonly minimumObjects: number;
+  /**
+   * Shortest time between two requests for this source, in milliseconds.
+   * Defaults to a little over 2 hours, the refresh interval of orbital
+   * elements. Sources that change less often must say so here.
+   */
+  readonly minimumIntervalMs?: number;
+  /**
+   * A source whose last successful download is older than this, in
+   * milliseconds, needs a human's attention. Defaults to 48 hours.
+   */
+  readonly staleAfterMs?: number;
 }
 
 function celestrakGroup(group: string): string {
@@ -35,13 +53,59 @@ function celestrakGroup(group: string): string {
 }
 
 /**
- * Sources in the order they are requested, smallest first. If the response
- * format ever changes, the problem then shows up on a small download instead
- * of the large one.
+ * CelesTrak's satellite catalog (SATCAT) records for one of its groups.
  *
- * The position of a source in this list is its bit in each record's
- * `sourceMask`. Catalogs record source identifiers alongside, and the merge
- * step re-maps by identifier, so reordering this list is safe.
+ * The query form is the one documented at
+ * https://celestrak.org/satcat/satcat-format.php (read 2026-11-15):
+ * `records.php?GROUP=<group>&FORMAT=CSV`, where the group is any of those on
+ * the current-data page. Asking by group returns records only for objects
+ * this project shows, in keeping with the usage policy's "download only the
+ * data you need"; the alternative, the complete catalog file, is several
+ * times larger and mostly objects that decayed long ago.
+ *
+ * NOT YET EXERCISED: this address was written from the documentation and
+ * had not been requested when this was written (the build environment is
+ * not allowed to contact CelesTrak). The first scheduled run is the test.
+ */
+function celestrakSatcatGroup(group: string): string {
+  return `https://celestrak.org/satcat/records.php?GROUP=${group}&FORMAT=CSV`;
+}
+
+/**
+ * How often descriptive data is requested. CelesTrak's usage policy
+ * (https://celestrak.org/usage-policy.php, read 2026-11-15) says the SATCAT
+ * is updated by hand once or twice a day and may be downloaded once per
+ * update. With runs every 8 hours, a 22-hour minimum means one request a
+ * day, at whichever run first falls a day after the last.
+ */
+const SATCAT_MINIMUM_INTERVAL_MS = 22 * 3_600_000;
+/** Descriptive data changes slowly; four days without a refresh is the point at which to look. */
+const SATCAT_STALE_AFTER_MS = 96 * 3_600_000;
+
+function satcatSource(group: string, label: string, minimumObjects: number): SourceDefinition {
+  return {
+    kind: 'satcat',
+    id: `satcat-${group}`,
+    label,
+    provider: 'CelesTrak',
+    url: celestrakSatcatGroup(group),
+    minimumObjects,
+    minimumIntervalMs: SATCAT_MINIMUM_INTERVAL_MS,
+    staleAfterMs: SATCAT_STALE_AFTER_MS,
+  };
+}
+
+/**
+ * Sources in the order they are requested: orbital elements first, because
+ * the site cannot work without them and a refused request ends the run;
+ * then descriptive data, which the site can do without for a day. Within
+ * each kind, smallest first: if the response format ever changes, the
+ * problem then shows up on a small download instead of the large one.
+ *
+ * The position of an orbital-elements source among the sources of that kind
+ * is its bit in each record's `sourceMask`. Catalogs record source
+ * identifiers alongside, and the merge step re-maps by identifier, so
+ * reordering this list is safe.
  */
 export const SOURCES: readonly SourceDefinition[] = [
   {
@@ -75,4 +139,8 @@ export const SOURCES: readonly SourceDefinition[] = [
     // truncated download.
     minimumObjects: 5000,
   },
+  satcatSource('iridium-33-debris', 'Catalog records: Iridium 33 debris', 1),
+  satcatSource('cosmos-2251-debris', 'Catalog records: Cosmos 2251 debris', 1),
+  satcatSource('fengyun-1c-debris', 'Catalog records: Fengyun-1C debris', 1),
+  satcatSource('active', 'Catalog records: active satellites', 5000),
 ];

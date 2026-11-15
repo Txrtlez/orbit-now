@@ -41,6 +41,27 @@ export interface CatalogSummary {
    * downloaded. The oldest is used so that the stated age is true of all the data.
    */
   readonly oldestFetchMs: number | null;
+  /**
+   * Where the descriptive fields (object type, owner, launch date) come
+   * from and when the least recent part was downloaded, or null if the
+   * catalog carries none.
+   */
+  readonly metadata: { readonly providers: string; readonly oldestFetchMs: number | null } | null;
+}
+
+function summariseMetadata(catalog: Catalog): CatalogSummary['metadata'] {
+  if (catalog.metadata === undefined) {
+    return null;
+  }
+  // Only the sources that have actually been downloaded contribute fields.
+  const times = catalog.metadata.sources.flatMap((source) =>
+    source.fetchedAt === null ? [] : [Date.parse(source.fetchedAt)],
+  );
+  return {
+    providers: [...new Set(catalog.metadata.sources.map((source) => source.provider))].join(', '),
+    oldestFetchMs:
+      times.length > 0 && times.every((time) => !Number.isNaN(time)) ? Math.min(...times) : null,
+  };
 }
 
 export function summariseCatalog(catalog: Catalog): CatalogSummary {
@@ -54,6 +75,7 @@ export function summariseCatalog(catalog: Catalog): CatalogSummary {
       .map(({ id, label, provider, objectCount }) => ({ id, label, provider, objectCount }))
       .sort((a, b) => b.objectCount - a.objectCount),
     oldestFetchMs: allKnown ? Math.min(...fetchTimes) : null,
+    metadata: summariseMetadata(catalog),
   };
 }
 
@@ -122,6 +144,19 @@ export function renderCatalogStatus(
     list,
     paragraph(age, 'muted'),
   );
+  if (summary.metadata !== null) {
+    const { providers: metadataProviders, oldestFetchMs } = summary.metadata;
+    about.append(
+      paragraph(
+        `Kind, owner, status and launch date come from the satellite catalog published by ${metadataProviders}` +
+          (oldestFetchMs === null
+            ? '.'
+            : `, downloaded ${describeAge(nowMs - oldestFetchMs)} ago or more recently.`) +
+          ' Objects catalogued since then have none yet.',
+        'muted',
+      ),
+    );
+  }
 
   details.replaceChildren(
     paragraph(

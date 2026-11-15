@@ -23,6 +23,13 @@ export interface FixtureOptions {
    * an invented date. It is never shown outside the tests.
    */
   readonly epochAtMs?: number;
+  /**
+   * If true, every object is given satellite-catalog fields (kind, status,
+   * owner, launch date). THE VALUES ARE INVENTED for the tests: they use
+   * the documented codes in rotation and have nothing to do with the real
+   * objects the element sets belong to.
+   */
+  readonly withInventedMetadata?: boolean;
 }
 
 /**
@@ -54,6 +61,35 @@ export function fixtureCatalogGzip(options: FixtureOptions): Buffer {
       },
     ],
     options.fetchedAt,
+    options.withInventedMetadata === true
+      ? {
+          definitions: [
+            {
+              kind: 'satcat',
+              id: 'fixture-satcat',
+              label: 'Invented catalog records',
+              provider: 'Test fixture',
+              url: 'https://example.invalid/satcat',
+              minimumObjects: 1,
+            },
+          ],
+          updates: new Map([
+            [
+              'fixture-satcat',
+              {
+                fetchedAt: options.fetchedAt,
+                records: elementSets.map((elementSet, index) => ({
+                  noradId: elementSet.noradId,
+                  objectType: ['PAY', 'R/B', 'DEB'][index % 3] ?? '',
+                  opsStatus: index % 3 === 0 ? '+' : '',
+                  owner: ['US', 'CIS', 'PRC', 'ESA'][index % 4] ?? '',
+                  launchDate: `${String(1990 + index)}-02-03`,
+                })),
+              },
+            ],
+          ]),
+        }
+      : undefined,
   );
   return gzipSync(encodeCatalog(catalog));
 }

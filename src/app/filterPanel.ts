@@ -1,4 +1,5 @@
 import type { ObjectIndex } from '../catalog/objectIndex';
+import { describeObjectType, OBJECT_TYPE_ORDER, OWNER_NAMES } from '../catalog/satcatCodes';
 import { REGIME_DESCRIPTIONS, REGIMES, type Regime } from '../orbit/elements';
 import {
   applyFilters,
@@ -70,6 +71,7 @@ export function createFilterPanel(options: FilterPanelOptions): void {
   const counts = countFilterOptions(objects);
   const groups = new Set<string>();
   const regimes = new Set<Regime>();
+  const types = new Set<string>();
   const passes = new Uint8Array(objects.count);
 
   const result = element('p', 'filter-result');
@@ -79,10 +81,13 @@ export function createFilterPanel(options: FilterPanelOptions): void {
 
   let yearFromInput: HTMLInputElement | null = null;
   let yearToInput: HTMLInputElement | null = null;
+  let ownerSelect: HTMLSelectElement | null = null;
 
   const currentState = (): FilterState => ({
     groups,
     regimes,
+    types,
+    owner: ownerSelect === null || ownerSelect.value === '' ? null : ownerSelect.value,
     yearFrom: yearFromInput === null ? null : readYear(yearFromInput),
     yearTo: yearToInput === null ? null : readYear(yearToInput),
   });
@@ -159,6 +164,59 @@ export function createFilterPanel(options: FilterPanelOptions): void {
     sections.push(orbit);
   }
 
+  // Kind and owner come from the satellite catalog, which a data file may
+  // not carry yet; the controls appear when it does.
+  if (counts.types.size > 0) {
+    // Known types in their usual order, then any code this site has not
+    // seen before, then the objects with nothing on record.
+    const codes = [
+      ...OBJECT_TYPE_ORDER,
+      ...[...counts.types.keys()].filter(
+        (code) => code !== '' && !OBJECT_TYPE_ORDER.includes(code),
+      ),
+      '',
+    ];
+    const kind = toggleSection(
+      'Kind',
+      codes.map((code) => ({
+        key: code,
+        label: code === '' ? 'Not on record' : describeObjectType(code),
+        count: counts.types.get(code) ?? 0,
+      })),
+      types,
+    );
+    if (kind !== null) {
+      sections.push(kind);
+    }
+  }
+  if (counts.owners.size > 1) {
+    const section = element('div', 'filter-section');
+    const heading = element('h3', 'section-title', 'Owner');
+    heading.id = 'filter-owner-title';
+    const select = element('select', 'owner-select');
+    select.setAttribute('aria-labelledby', heading.id);
+    const any = element('option', undefined, 'Any owner');
+    any.value = '';
+    select.append(any);
+    // Most objects first.
+    const ranked = [...counts.owners.entries()].sort(
+      (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+    );
+    for (const [code, count] of ranked) {
+      const option = element(
+        'option',
+        undefined,
+        `${OWNER_NAMES[code] ?? code} (${formatCount(count)})`,
+      );
+      option.value = code;
+      select.append(option);
+    }
+    select.addEventListener('change', update);
+    ownerSelect = select;
+    section.append(heading, select);
+    sections.push(section);
+  }
+
   const range = objects.launchYearRange;
   if (range !== null && range[0] < range[1]) {
     const section = element('div', 'filter-section');
@@ -195,6 +253,10 @@ export function createFilterPanel(options: FilterPanelOptions): void {
   reset.addEventListener('click', () => {
     groups.clear();
     regimes.clear();
+    types.clear();
+    if (ownerSelect !== null) {
+      ownerSelect.value = '';
+    }
     if (yearFromInput !== null) {
       yearFromInput.value = '';
     }

@@ -92,3 +92,46 @@ describe('describeElementAge', () => {
     expect(describeElementAge(-25 * 3_600_000)).toBe('Dated 25 hours ahead');
   });
 });
+
+describe('describeObject with satellite-catalog fields', () => {
+  /** Invented values in the documented codes, attached to the made-up catalog above. */
+  const withMetadata = buildObjectIndex(
+    {
+      ...catalog,
+      metadata: {
+        sources: [],
+        objectType: ['PAY', 'R/B'],
+        opsStatus: ['+', ''],
+        owner: ['ISS', 'XYZ'],
+        launchDate: ['1998-11-20', ''],
+      },
+    },
+    {
+      periodMinutes: new Float32Array([92.94, 717.97]),
+      apogeeKm: new Float32Array([421.2, 20_400]),
+      perigeeKm: new Float32Array([412.8, 20_000]),
+    },
+  );
+
+  it('adds kind, status, owner and the full launch date', () => {
+    const facts = describeObject(withMetadata, 0, now);
+    expect(valueOf(facts.identityFacts, 'Kind')).toBe('Payload');
+    expect(valueOf(facts.identityFacts, 'Status')).toBe('Operational');
+    expect(valueOf(facts.identityFacts, 'Owner')).toBe('International Space Station (ISS)');
+    expect(valueOf(facts.identityFacts, 'Launched')).toBe('1998-11-20');
+    // The category still leads the one-line description.
+    expect(facts.subtitle).toBe('Space station module · LEO');
+  });
+
+  it('shows an unknown code as published, and leaves out what is blank', () => {
+    const facts = describeObject(withMetadata, 1, now);
+    expect(facts.subtitle).toBe('Rocket body · MEO');
+    expect(valueOf(facts.identityFacts, 'Owner')).toBe('XYZ');
+    expect(facts.identityFacts.map((fact) => fact.label)).toEqual([
+      'Catalog number',
+      'Kind',
+      'Owner',
+      'Orbit data',
+    ]);
+  });
+});

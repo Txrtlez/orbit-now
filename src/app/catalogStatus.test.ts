@@ -61,4 +61,35 @@ describe('summariseCatalog', () => {
     expect(summary.oldestFetchMs).toBeNull();
     expect(summariseCatalog({ ...base, sources: [] }).oldestFetchMs).toBeNull();
   });
+
+  it('reports where descriptive fields come from, and the oldest download among them', () => {
+    expect(summariseCatalog(base).metadata).toBeNull();
+    const source = {
+      id: 'satcat-big',
+      label: 'Catalog records',
+      provider: 'CelesTrak',
+      fetchedAt: '2026-11-14T03:20:00.000Z',
+      objectCount: 40,
+    };
+    const fields = { objectType: [], opsStatus: [], owner: [], launchDate: [] };
+    expect(
+      summariseCatalog({
+        ...base,
+        metadata: {
+          sources: [
+            source,
+            { ...source, id: 'satcat-small', fetchedAt: '2026-11-13T03:20:00.000Z' },
+          ],
+          ...fields,
+        },
+      }).metadata,
+    ).toEqual({ providers: 'CelesTrak', oldestFetchMs: Date.parse('2026-11-13T03:20:00.000Z') });
+    // A source that has not been downloaded yet contributes nothing, and does not hide the others.
+    expect(
+      summariseCatalog({
+        ...base,
+        metadata: { sources: [source, { ...source, fetchedAt: null }], ...fields },
+      }).metadata?.oldestFetchMs,
+    ).toBe(Date.parse('2026-11-14T03:20:00.000Z'));
+  });
 });

@@ -1,4 +1,5 @@
 import { categoryAt, regimeAt, type ObjectIndex } from '../catalog/objectIndex';
+import { describeObjectType, describeOpsStatus, describeOwner } from '../catalog/satcatCodes';
 import { parseDesignator, REGIME_DESCRIPTIONS } from '../orbit/elements';
 import { describeAge } from './catalogStatus';
 import { formatDegrees, formatKm, formatPeriod } from './format';
@@ -43,7 +44,9 @@ export function describeElementAge(ageMs: number): string {
  * designator, inclination, epoch) or comes from the STANDARD MODEL's own
  * initialisation (period, lowest and highest altitude; see
  * `summariseOrbits`). The regime label is this site's convention (see
- * `classifyRegime`).
+ * `classifyRegime`). Kind, status, owner and launch date are REAL DATA from
+ * the satellite catalog, shown only for objects the catalog file has them
+ * for; without them the launch year is read from the designator.
  *
  * @param nowMs the present time, used only to state the age of the element set
  */
@@ -56,10 +59,19 @@ export function describeObject(objects: ObjectIndex, index: number, nowMs: numbe
   const regime = regimeAt(objects, index);
   const designator = parseDesignator(record.objectId);
 
-  const subtitle =
-    category.id === 'other'
-      ? `${regime} · ${REGIME_DESCRIPTIONS[regime].split(':')[0] ?? regime}`
-      : `${category.one} · ${regime}`;
+  const objectType = objects.metadata?.objectType[index] ?? '';
+  const opsStatus = objects.metadata?.opsStatus[index] ?? '';
+  const owner = objects.metadata?.owner[index] ?? '';
+  const launchDate = objects.metadata?.launchDate[index] ?? '';
+
+  let subtitle: string;
+  if (category.id !== 'other') {
+    subtitle = `${category.one} · ${regime}`;
+  } else if (objectType !== '') {
+    subtitle = `${describeObjectType(objectType)} · ${regime}`;
+  } else {
+    subtitle = `${regime} · ${REGIME_DESCRIPTIONS[regime].split(':')[0] ?? regime}`;
+  }
 
   const orbitFacts: Fact[] = [
     {
@@ -101,7 +113,35 @@ export function describeObject(objects: ObjectIndex, index: number, nowMs: numbe
           : `International designator: piece ${designator.piece} of launch ${String(designator.launchNumber)} of ${String(designator.year)}.`,
     });
   }
-  if (designator !== null) {
+  const fromCatalog = "From CelesTrak's satellite catalog.";
+  if (objectType !== '') {
+    identityFacts.push({
+      label: 'Kind',
+      value: describeObjectType(objectType),
+      note: fromCatalog,
+    });
+  }
+  if (opsStatus !== '') {
+    identityFacts.push({
+      label: 'Status',
+      value: describeOpsStatus(opsStatus),
+      note: fromCatalog,
+    });
+  }
+  if (owner !== '') {
+    identityFacts.push({
+      label: 'Owner',
+      value: describeOwner(owner),
+      note: `Owning country or organisation. ${fromCatalog}`,
+    });
+  }
+  if (launchDate !== '') {
+    identityFacts.push({
+      label: 'Launched',
+      value: launchDate,
+      note: `Launch date (year-month-day). ${fromCatalog}`,
+    });
+  } else if (designator !== null) {
     identityFacts.push({
       label: 'Launched',
       value: String(designator.year),

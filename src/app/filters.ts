@@ -6,7 +6,7 @@ import { REGIMES, type Regime } from '../orbit/elements';
  * Deciding which objects the viewer has asked to see.
  *
  * There are several independent questions (which family? which orbit?
- * launched when?). Within one question, ticking several answers widens the
+ * what kind of object? whose? launched when?). Within one question, ticking several answers widens the
  * selection ("Starlink or OneWeb"); across questions the answers must all
  * hold ("...and in low Earth orbit, and launched since 2020"). A question
  * with nothing ticked is not asked at all.
@@ -45,6 +45,14 @@ export interface FilterState {
   readonly groups: ReadonlySet<string>;
   /** The ticked orbit regimes. Empty means any regime. */
   readonly regimes: ReadonlySet<Regime>;
+  /**
+   * The ticked object types, as satellite-catalog codes ("PAY", "R/B",
+   * "DEB", "UNK", or "" for objects with no type on record). Empty means
+   * any type. Has no effect on a catalog without descriptive fields.
+   */
+  readonly types: ReadonlySet<string>;
+  /** Owner code wanted, or null for any owner. Has no effect on a catalog without descriptive fields. */
+  readonly owner: string | null;
   /** Earliest launch year wanted, or null for no lower limit. */
   readonly yearFrom: number | null;
   /** Latest launch year wanted, or null for no upper limit. */
@@ -55,6 +63,8 @@ export interface FilterState {
 export const NO_FILTERS: FilterState = {
   groups: new Set(),
   regimes: new Set(),
+  types: new Set(),
+  owner: null,
   yearFrom: null,
   yearTo: null,
 };
@@ -64,6 +74,8 @@ export function isFilterActive(state: FilterState): boolean {
   return (
     state.groups.size > 0 ||
     state.regimes.size > 0 ||
+    state.types.size > 0 ||
+    state.owner !== null ||
     state.yearFrom !== null ||
     state.yearTo !== null
   );
@@ -100,6 +112,12 @@ export function applyFilters(objects: ObjectIndex, state: FilterState, out: Uint
   const yearLimited = state.yearFrom !== null || state.yearTo !== null;
   const from = state.yearFrom ?? -Infinity;
   const to = state.yearTo ?? Infinity;
+  // The questions about kind and owner can only be asked of a catalog that
+  // carries those fields.
+  const types = objects.metadata === null || state.types.size === 0 ? null : state.types;
+  const owner = objects.metadata === null ? null : state.owner;
+  const typeColumn = objects.metadata?.objectType;
+  const ownerColumn = objects.metadata?.owner;
 
   let passing = 0;
   for (let i = 0; i < objects.count; i += 1) {
@@ -107,6 +125,8 @@ export function applyFilters(objects: ObjectIndex, state: FilterState, out: Uint
     const passes =
       categoryPasses[objects.category[i] ?? 0] === true &&
       regimePasses[objects.regime[i] ?? 0] === true &&
+      (types === null || types.has(typeColumn?.[i] ?? '')) &&
+      (owner === null || ownerColumn?.[i] === owner) &&
       (!yearLimited || (year !== 0 && year >= from && year <= to));
     out[i] = passes ? 1 : 0;
     if (passes) {
@@ -116,10 +136,17 @@ export function applyFilters(objects: ObjectIndex, state: FilterState, out: Uint
   return passing;
 }
 
-/** How many objects each family button and each regime covers, for labelling the buttons. */
+/**
+ * How many objects each possible answer covers, for labelling the controls.
+ * `types` and `owners` are empty for a catalog without descriptive fields;
+ * in `types` the key "" counts the objects with no type on record, and
+ * objects with no owner on record are not counted in `owners`.
+ */
 export function countFilterOptions(objects: ObjectIndex): {
   readonly groups: ReadonlyMap<string, number>;
   readonly regimes: ReadonlyMap<Regime, number>;
+  readonly types: ReadonlyMap<string, number>;
+  readonly owners: ReadonlyMap<string, number>;
 } {
   const groupOf = groupOfCategory();
   const groups = new Map<string, number>(FILTER_GROUPS.map((group) => [group.id, 0]));
@@ -134,5 +161,17 @@ export function countFilterOptions(objects: ObjectIndex): {
       regimes.set(regime, (regimes.get(regime) ?? 0) + 1);
     }
   }
-  return { groups, regimes };
+  const types = new Map<string, number>();
+  const owners = new Map<string, number>();
+  if (objects.metadata !== null) {
+    for (let i = 0; i < objects.count; i += 1) {
+      const type = objects.metadata.objectType[i] ?? '';
+      types.set(type, (types.get(type) ?? 0) + 1);
+      const owner = objects.metadata.owner[i] ?? '';
+      if (owner !== '') {
+        owners.set(owner, (owners.get(owner) ?? 0) + 1);
+      }
+    }
+  }
+  return { groups, regimes, types, owners };
 }

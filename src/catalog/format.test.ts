@@ -216,3 +216,81 @@ describe('recordToOmm', () => {
     });
   });
 });
+
+describe('descriptive fields (metadata)', () => {
+  /** Invented values in the documented codes; they describe no real object. */
+  const WITH_METADATA: Catalog = {
+    ...CATALOG,
+    metadata: {
+      sources: [
+        {
+          id: 'satcat-a',
+          label: 'Catalog records A',
+          provider: 'TEST',
+          fetchedAt: '2026-11-14T03:16:30.000Z',
+          objectCount: 2,
+        },
+      ],
+      // In the same order as CATALOG.records: the six-digit object first.
+      objectType: ['DEB', 'PAY'],
+      opsStatus: ['', '+'],
+      owner: ['PRC', 'US'],
+      launchDate: ['', '1958-03-17'],
+    },
+  };
+
+  it('survives a round trip, staying matched to the right object when records are sorted', () => {
+    const decoded = decodeCatalog(encodeCatalog(WITH_METADATA));
+    expect(decoded.records.map((record) => record.noradId)).toEqual([5, 101357]);
+    expect(decoded.metadata).toEqual({
+      sources: WITH_METADATA.metadata?.sources,
+      objectType: ['PAY', 'DEB'],
+      opsStatus: ['+', ''],
+      owner: ['US', 'PRC'],
+      launchDate: ['1958-03-17', ''],
+    });
+  });
+
+  it('is simply absent from a catalog written without it', () => {
+    const decoded = decodeCatalog(encodeCatalog(CATALOG));
+    expect(decoded.metadata).toBeUndefined();
+    expect('metadata' in decoded).toBe(false);
+    expect(JSON.parse(encodeCatalog(CATALOG))).not.toHaveProperty('metadata');
+  });
+
+  it('does not stop a reader that knows nothing about it', () => {
+    // What a reader written before these fields existed does: take the keys
+    // it knows and ignore the rest. The orbital data must be unaffected.
+    const file = JSON.parse(encodeCatalog(WITH_METADATA)) as Record<string, unknown>;
+    const known = { ...file };
+    delete known.metadata;
+    expect(decodeCatalog(JSON.stringify(known)).records).toEqual(
+      decodeCatalog(encodeCatalog(CATALOG)).records,
+    );
+    expect(file.version).toBe(CATALOG_VERSION);
+  });
+
+  it('refuses to write fields that are not matched one-to-one with the records', () => {
+    const broken: Catalog = {
+      ...WITH_METADATA,
+      metadata: { ...WITH_METADATA.metadata, sources: [], owner: ['US'] } as Catalog['metadata'] &
+        object,
+    };
+    expect(() => encodeCatalog(broken)).toThrow(RangeError);
+  });
+
+  it('refuses to read malformed fields', () => {
+    const file = JSON.parse(encodeCatalog(WITH_METADATA)) as {
+      metadata: { columns: Record<string, unknown> };
+    };
+    file.metadata.columns.owner = ['US'];
+    expect(() => decodeCatalog(JSON.stringify(file))).toThrow(
+      /"owner" is missing or does not have 2/,
+    );
+    file.metadata.columns.owner = ['US', 7];
+    expect(() => decodeCatalog(JSON.stringify(file))).toThrow(/not text/);
+    expect(() =>
+      decodeCatalog(JSON.stringify({ ...JSON.parse(encodeCatalog(CATALOG)), metadata: 'yes' })),
+    ).toThrow(/metadata.*malformed/);
+  });
+});
