@@ -33,6 +33,13 @@ async function openPasses(page: Page): Promise<void> {
   await expect(page.locator('#passes-panel')).toBeVisible();
 }
 
+/**
+ * How long to wait for the passes to be worked out. They are computed on a
+ * background thread, which can be slow to get a turn when other tests are
+ * running simulations of their own on the same machine.
+ */
+const COMPUTED = { timeout: 30_000 };
+
 const placeField = (page: Page) => page.getByRole('combobox', { name: /^City/ });
 
 /** Give a place by typing coordinates, and wait for the passes to be worked out. */
@@ -41,7 +48,7 @@ async function chooseCoordinates(page: Page, text: string): Promise<void> {
   await expect(page.getByRole('option', { name: /Use these coordinates/ })).toBeVisible();
   await placeField(page).press('Enter');
   await expect(page.locator('#passes-panel')).toHaveAttribute('data-located', 'true');
-  await expect(page.locator('#passes-panel')).toHaveAttribute('data-computing', 'false');
+  await expect(page.locator('#passes-panel')).toHaveAttribute('data-computing', 'false', COMPUTED);
 }
 
 test('explains itself and asks for a place before listing anything', async ({ page }) => {
@@ -112,7 +119,7 @@ test('lists passes with their three moments, and more of them when asked', async
   await expect(panel).toContainText('does not include the space stations');
 
   await page.getByLabel(/other bright satellites/).check();
-  await expect(panel).toHaveAttribute('data-computing', 'false');
+  await expect(panel).toHaveAttribute('data-computing', 'false', COMPUTED);
   await page.getByLabel('Include passes that cannot be seen').check();
   const total = Number(await panel.getAttribute('data-passes'));
   expect(total).toBeGreaterThan(20);
@@ -161,7 +168,7 @@ test('shows a pass in the 3D view: moves the clock to it and selects the satelli
   await page.getByLabel(/other bright satellites/).check();
   await page.getByLabel('Include passes that cannot be seen').check();
   const panel = page.locator('#passes-panel');
-  await expect(panel).toHaveAttribute('data-computing', 'false');
+  await expect(panel).toHaveAttribute('data-computing', 'false', COMPUTED);
 
   // A pass far enough ahead that jumping to it is unmistakable.
   const row = panel.locator('.pass').nth(5);

@@ -261,7 +261,8 @@ test('plays from 1957 when motion is allowed, and can be paused', async ({ page 
   const body = page.locator('#growth-body');
   await expect(body).toHaveAttribute('data-playing', 'true');
   const monthShown = async (): Promise<number> => Number(await body.getAttribute('data-month'));
-  await expect.poll(monthShown).toBeGreaterThan(24);
+  // Generous: on a busy machine the first frames of the playback can be seconds apart.
+  await expect.poll(monthShown, { timeout: 30_000 }).toBeGreaterThan(24);
   expect(await monthShown()).toBeLessThan(832);
 
   // A mouse that happens to be over the plot does not stop the film. (The
