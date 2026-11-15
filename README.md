@@ -3,19 +3,22 @@
 A live 3D tracker of the publicly tracked objects in Earth orbit, with an illustrative
 debris-cascade ("Kessler syndrome") simulator.
 
-**Status: Phase 1 built, Phase 2 partly done.** The app currently shows an untextured globe
-with a latitude/longitude grid. It loads no orbital data and shows no satellites yet. Nothing in it
-should be read as a statement about the real state of Earth orbit.
+**Live site:** <https://txrtlez.github.io/orbit-now/>
 
-| Phase | Scope                                                                     | State                                                      |
-| ----- | ------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| 1     | Repository structure, tooling, CI, deploy pipeline, empty app             | Built; not deployed (see Known issues)                     |
-| 2     | Scheduled OMM data pipeline; SGP4 validated against published vectors     | SGP4 validated; pipeline waiting on a data-source decision |
-| 3     | Earth rendering, all objects moving, picking, info panel, filters, search | Not started                                                |
-| 4     | Overhead passes with visibility; time controls                            | Not started                                                |
-| 5     | Historical debris layers; growth-of-orbit chart                           | Not started                                                |
-| 6     | "What if?" mode: breakup model, propagation, reentry, cascade statistics  | Not started                                                |
-| 7     | Guided tour, shareable links, About page, accessibility, launch           | Not started                                                |
+**Status: Phases 1 and 2 of 7 are done.** The site is deployed. It downloads real orbital data three
+times a day and reports what it holds, but it does not draw any satellites yet: the globe is still an
+untextured model with a latitude/longitude grid. The data covers active satellites and three debris
+clouds, not every tracked object (see "Data source").
+
+| Phase | Scope                                                                     | State                                                |
+| ----- | ------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 1     | Repository structure, tooling, CI, deploy pipeline, empty app             | Done                                                 |
+| 2     | Scheduled OMM data pipeline; SGP4 validated against published vectors     | Done, with one documented exception in the SGP4 gate |
+| 3     | Earth rendering, all objects moving, picking, info panel, filters, search | Not started                                          |
+| 4     | Overhead passes with visibility; time controls                            | Not started                                          |
+| 5     | Historical debris layers; growth-of-orbit chart                           | Not started                                          |
+| 6     | "What if?" mode: breakup model, propagation, reentry, cascade statistics  | Not started                                          |
+| 7     | Guided tour, shareable links, About page, accessibility, launch           | Not started                                          |
 
 ## Run it
 
@@ -42,15 +45,16 @@ PW_CHROMIUM_PATH=/path/to/chrome npm run e2e
 
 Individual commands:
 
-| Command                | What it does                                                              |
-| ---------------------- | ------------------------------------------------------------------------- |
-| `npm run format:check` | Fails if any file is not formatted the way Prettier would format it       |
-| `npm run lint`         | ESLint with typescript-eslint's strict, type-aware rule sets              |
-| `npm run typecheck`    | TypeScript in strict mode, three projects: app, tooling, end-to-end tests |
-| `npm run test`         | Vitest unit tests (all physics and geometry code has them)                |
-| `npm run build`        | Production build into `dist/`                                             |
-| `npm run size`         | Fails if the gzip-compressed initial download exceeds 300 kB              |
-| `npm run preview`      | Serves `dist/` at http://localhost:4173                                   |
+| Command                | What it does                                                                                    |
+| ---------------------- | ----------------------------------------------------------------------------------------------- |
+| `npm run format:check` | Fails if any file is not formatted the way Prettier would format it                             |
+| `npm run lint`         | ESLint with typescript-eslint's strict, type-aware rule sets                                    |
+| `npm run typecheck`    | TypeScript in strict mode, three projects: app, tooling, end-to-end tests                       |
+| `npm run test`         | Vitest unit tests (all physics and geometry code has them)                                      |
+| `npm run build`        | Production build into `dist/`                                                                   |
+| `npm run size`         | Fails if the gzip-compressed initial download exceeds 300 kB                                    |
+| `npm run preview`      | Serves `dist/` at http://localhost:4173                                                         |
+| `npm run data:update`  | Runs the data pipeline. **Makes real requests to CelesTrak; do not run it by hand** (see below) |
 
 ## Deploy it
 
@@ -86,8 +90,11 @@ src/
   app/                     Interface code that is not 3D (tabs, build stamp)
   geo/                     Earth geometry: WGS 84 constants, coordinate conversions
   render/                  three.js scene, camera framing, latitude/longitude grid
+  catalog/                 The catalog file format (shared with the pipeline) and its loader
   modes/whatif/            "What if?" mode, loaded on demand as a separate file
+pipeline/                  Data pipeline: download, check, merge, publish (runs in GitHub Actions)
 tests/validation/          Launch-gate validations against published reference data
+tests/pipeline/            Pipeline tests; the network is always substituted, never contacted
 tests/fixtures/            The reference data itself, with provenance notes
 e2e/                       Playwright browser tests, run against the production build
 scripts/                   Build-time checks (bundle size budget)
@@ -192,46 +199,109 @@ The interface uses the operating system's own font. This avoids a font download,
 third party, and text shifting when a web font arrives. A self-hosted typeface can be reconsidered
 in Phase 7 if the design calls for one.
 
-## Open decision: where the orbital data comes from
+### 8. Data lives on a single-commit `data` branch
 
-The brief specifies CelesTrak GP data, fetched by a scheduled GitHub Action, covering every publicly
-tracked object. Reading CelesTrak's own pages on 2026-11-14 turned up two facts that conflict with
-that plan. The pipeline has not been built, because the choice below changes what it has to do.
+The catalog is about 0.7 MB and changes three times a day. Committing it to `main` would add
+roughly 2 MB of permanent history daily. Instead the pipeline force-pushes one commit to a `data`
+branch, and the deploy workflow copies that branch's files into the built site. The repository's
+history stays small, the source code and the data stay separate, and the site remains purely
+static. The cost is that old catalogs are not kept.
 
-1. **CelesTrak has no "everything" query.** Its GP data is served in named groups. The `active`
-   group is labelled "Active Satellites". The only debris groups are for three specific events
-   (`fengyun-1c-debris`, `iridium-33-debris`, `cosmos-2251-debris`). No listed group covers rocket
-   bodies, dead satellites or debris in general, and there is no group for Cosmos 1408 debris.
-   CelesTrak's documentation also says there is no reason to download all of the groups.
-2. **CelesTrak now enforces one download per data set per update, by IP address.** GP data updates
-   every 2 hours. A repeat request inside that window gets HTTP 403, and its policy says automated
-   clients must stop on any non-200 response and report to a human; repeated errors get the address
-   firewalled. GitHub-hosted Actions runners share IP addresses with other GitHub users, and at
-   least one other project has reported a 403 caused by a different client on the same shared
-   address. So a scheduled Action can be refused through no fault of its own.
+### 9. Catalog format: column-wise JSON, gzip-compressed, numbers untouched
 
-Options:
+Each field is stored as one array across all objects, the file is gzip-compressed by the pipeline,
+and the browser decompresses it with the built-in `DecompressionStream`. Numbers are stored exactly
+as published; nothing is rounded or rescaled, and a test asserts that every value survives the round
+trip bit for bit. Five OMM fields that SGP4 does not read are dropped (the two mean-motion
+derivatives, the element-set number, the revolution number and the classification); the validation
+suite shows that propagation from the reduced record still reproduces the published reference
+states. A more compact binary encoding was considered and deferred: it would save perhaps a few
+hundred kilobytes at the cost of a format that is harder to inspect, and that trade is better judged
+in Phase 3 with real loading times.
 
-- **A. CelesTrak groups only.** Fetch `active` and the three debris groups, a few times a day,
-  keeping the previous data whenever a fetch is refused. Needs no account. The app would then show
-  active satellites plus three debris clouds, and must say so; it could not claim to show every
-  tracked object.
-- **B. Space-Track.org.** The US Space Force's own service offers the full catalog, but requires
-  an account and acceptance of a user agreement. Whether that agreement permits republishing the
-  data on a public website has not been checked and must be, by the account holder, before this
-  option is used.
-- **C. Ask CelesTrak.** Its site has a special data request form. A short, specific request might
-  be granted, or might not.
+### 10. Three downloads a day, not twelve
+
+CelesTrak refreshes every 2 hours, but its documentation notes that the underlying Space Force data
+changes only two or three times a day and asks users to download only what they need. Three runs a
+day keeps the typical element set under a day old (measured: median 0.86 days on the first run)
+while using about a quarter of the permitted request rate.
+
+## Data source
+
+**What the site shows.** Orbital data comes from [CelesTrak](https://celestrak.org), which
+republishes the US Space Force's general-perturbations (GP) element sets. Four of CelesTrak's
+groups are used:
+
+| CelesTrak group      | Objects on 2026-11-15 |
+| -------------------- | --------------------- |
+| `active`             | 16,881                |
+| `fengyun-1c-debris`  | 1,988                 |
+| `cosmos-2251-debris` | 581                   |
+| `iridium-33-debris`  | 109                   |
+| **Total**            | **19,559**            |
+
+**What it does not show.** This is not the full public catalog. The brief asked for every publicly
+tracked object, and that turned out not to be available from CelesTrak in one query: its GP data is
+served in named groups, none of which covers all rocket bodies, inactive satellites and debris, and
+its documentation asks users not to download all the groups. There is also no group for Cosmos 1408
+debris, which affects the historical layers planned for Phase 5. The app states the limitation next
+to the object count.
+
+**Why this choice, and how to change it.** The alternatives were Space-Track.org (the full
+catalog, but it needs an account, and whether its user agreement allows republishing the data on a
+public website has not been checked) and asking CelesTrak for a special arrangement. The CelesTrak
+groups were chosen because they work today without an account and within CelesTrak's published
+rules. The choice is not locked in: sources are a list in `pipeline/sources.ts`, and the catalog
+format records which source each object came from.
+
+## Data pipeline
+
+`.github/workflows/data.yml` runs at 03:17, 11:17 and 19:17 UTC. Each run:
+
+1. reads the currently published data from the `data` branch;
+2. requests each group once from CelesTrak as OMM CSV, smallest group first;
+3. checks every row (see `pipeline/omm.ts` for the rules) and the download as a whole;
+4. merges what passed into the catalog, keeping the previous data for any group that was not
+   refreshed;
+5. writes `catalog.json.gz` and `status.json` to the `data` branch and redeploys the site.
+
+**Rules it follows.** CelesTrak's [usage policy](http://celestrak.org/usage-policy.php) allows one
+download of each data set per update (every 2 hours for GP data) and tells automated clients to
+stop on any response other than HTTP 200. Accordingly the pipeline never requests a group it
+requested less than 2 hours 5 minutes earlier, never retries, never follows redirects, and stops
+the run at the first non-200 response. The 2-hour rule is enforced in code, so pressing "Run
+workflow" by hand is safe: a run that comes too soon makes no requests at all.
+
+**Do not run `npm run data:update` on your own computer** unless you mean to. It would spend your
+home IP address's allowance for those groups for the next two hours, and repeated mistakes can get
+an address blocked. Use `npm run test`, which never touches the network.
+
+**When a run is marked failed.** Only when something needs a person: a request failed for a
+reason other than CelesTrak's routine "not updated yet" reply, a download was rejected by the
+checks, or a group has gone more than 48 hours without a successful refresh. The run's summary
+page says which. A routine refusal alone does not fail the run, because GitHub's runners share IP
+addresses with other users and can be refused through no fault of this project.
+
+**Looking at the data.** `git fetch origin data && git show FETCH_HEAD:status.json` prints the
+pipeline's own record of the last request to each group, including how many rows were left out
+and why.
 
 ## Known issues
 
-- **Not deployed.** The repository `Txrtlez/orbit-now` exists and is empty. Pushing to it from the
-  build session was refused because the Claude GitHub App has no access to it. As a result the two
-  workflow files have never run. They use the current major versions of each action as of
-  2026-11-14 (`checkout@v7`, `setup-node@v7`, `configure-pages@v6`, `upload-pages-artifact@v5`,
-  `deploy-pages@v5`, `upload-artifact@v7`), but until they run once they are untested.
-- **Tested in one browser engine.** Chromium only, in headless mode with software rendering. Firefox
-  and Safari are untested.
+- **The schedule itself is unproven.** The data workflow has run once, started by hand, and
+  succeeded. Its first scheduled run had not happened when this was written. To my knowledge GitHub
+  also pauses scheduled workflows in repositories with no activity for 60 days; if the data stops
+  updating after a long quiet period, check the Actions tab for a prompt to re-enable it.
+- **The refusal path has only been exercised in tests.** CelesTrak answered all four first requests
+  with HTTP 200. How the pipeline behaves when CelesTrak refuses is covered by tests with a
+  substitute network, but has not yet happened for real.
+- **The live catalog has not been compared row by row with the raw downloads.** The raw files are
+  kept as a workflow artifact for 3 days, but the build environment could not download them.
+- **On a phone, opening "About this data" makes the panel cover part of the globe.** The layout is
+  reworked in Phase 3 when the panel gains real content.
+- **Tested in one browser engine.** Chromium only: headless with software rendering in CI, and one
+  manual check of the live site in a Chromium-based browser on a desktop GPU. Firefox and Safari are
+  untested.
 - **No real-device performance numbers.** Nothing here has been run on a physical phone.
 - **Development-only security advisory.** `npm audit` reports a moderate-severity denial-of-service
   advisory (GHSA-g3hv-75wg-m249) in `minimatch`, a dependency of typescript-eslint. It affects the
@@ -250,5 +320,8 @@ Options:
 - SGP4 verification data: Vallado, Crawford, Hujsak and Kelso, "Revisiting Spacetrack Report #3"
   (AIAA 2006-6753), obtained through the `sgp4` Python package by Brandon Rhodes (MIT licence).
 
-No Earth imagery or orbital data is used yet. Sources for both will be credited here and in the
-in-app About page when they are added.
+- Orbital data: [CelesTrak](https://celestrak.org) (Dr. T.S. Kelso), from general-perturbations
+  data published by the US Space Force's 18th Space Defense Squadron.
+
+No Earth imagery is used yet. Its source will be credited here and in the in-app About page when it
+is added.

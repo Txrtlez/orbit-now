@@ -148,3 +148,63 @@ an informed one.
   tests pass; 6 of 6 browser smoke tests pass; initial download 138.0 kB against the 300 kB budget
   (satellite.js is installed but not yet imported by the app, so it adds nothing to the download).
   GitHub Actions workflows: still not run.
+
+### V2.3 Data pipeline: first run against the real source
+
+- **Date:** 2026-11-15, 01:54 UTC (workflow run 43665237457, started by hand)
+- **What is checked:** that the pipeline, written and tested without access to CelesTrak, works on
+  CelesTrak's actual responses, and that the published catalog is plausible.
+- **Reproduce:** the run's summary is at
+  <https://github.com/Txrtlez/orbit-now/actions/runs/43665237457>. The published result can be
+  read with `git fetch origin data && git show FETCH_HEAD:status.json`.
+
+| Group                | HTTP status | Rows   | Accepted | Left out |
+| -------------------- | ----------- | ------ | -------- | -------- |
+| `iridium-33-debris`  | 200         | 109    | 109      | 0        |
+| `cosmos-2251-debris` | 200         | 581    | 581      | 0        |
+| `fengyun-1c-debris`  | 200         | 1,988  | 1,988    | 0        |
+| `active`             | 200         | 16,881 | 16,881   | 0        |
+
+Properties of the resulting catalog:
+
+| Quantity                                                 | Value                                            |
+| -------------------------------------------------------- | ------------------------------------------------ |
+| Objects                                                  | 19,559 (none listed by two groups)               |
+| File size                                                | 723,576 bytes compressed; 2,391,385 uncompressed |
+| Objects with catalog numbers above 99,999                | 1,021 (highest: 101357)                          |
+| Age of element sets when the catalog was written: median | 0.86 days                                        |
+| Age: 90th and 99th percentile                            | 1.46 and 5.69 days                               |
+| Age: oldest                                              | 29.63 days                                       |
+| Element sets with an epoch in the future                 | 1 (by 1.03 days)                                 |
+
+Two observations follow from this table. First, 1,021 objects could not have been represented in
+the legacy two-line format at all, which confirms the brief's instruction to use OMM. Second, the
+highest catalog number matches the figure CelesTrak's own site gave for the latest catalogued
+object on the same day (101357).
+
+**Plausibility check on one object (not a validation).** The catalog's record for catalog number
+25544, named "ISS (ZARYA)", with epoch 2026-11-14T07:16:30.203040, was propagated to its own epoch
+with SGP4. The result is 414.7 km above the equatorial radius (distance from the Earth's centre
+minus 6378.137 km, which is not the same as height above the ground) and a speed of 7.666 km/s.
+Both are in the range expected for the International Space Station. This shows the data is not
+garbage. It does not show that positions are accurate; that is launch gate 2, in Phase 4.
+
+**Live site check.** On 2026-11-15 the deployed site (build 1e3ae3a) was opened in a Chromium 156
+based browser on Windows with an NVIDIA GeForce RTX 2080 SUPER. It reported "Orbital data loaded
+for 19,559 objects", and a screenshot showed the globe drawn. The catalog was served as
+`application/gzip` with no content encoding, 723,576 bytes, which is the case the loader's
+in-browser decompression was written for. The JavaScript bundle transferred as 141.9 kB.
+
+**Result: pass, with stated limits.** Not checked: a row-by-row comparison of the live catalog with
+the raw downloads (the raw files could not be retrieved from the build environment); a scheduled
+run, as opposed to one started by hand; and the pipeline's behaviour on a real refusal from
+CelesTrak, which so far is covered only by tests with a substitute network.
+
+### V2.4 Build and browser checks at the end of Phase 2
+
+- **Date:** 2026-11-15
+- **Result:** on GitHub Actions (run 43665237457): formatting, lint and type-check pass; 131 of 131
+  unit and validation tests pass; 12 of 12 browser tests pass. Initial download of HTML, JavaScript
+  and CSS: 139.8 kB against the 300 kB budget. The catalog is a further 723.6 kB, fetched after the
+  page has started, and is not counted in that budget. Whether the total meets the "under 3 seconds"
+  target on a typical phone connection has not been measured.
