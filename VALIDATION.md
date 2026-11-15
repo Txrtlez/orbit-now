@@ -5,14 +5,14 @@ and the date it was made. A check that has not been run is listed as "not yet ru
 
 ## Launch gates
 
-These are the four validations that must pass before launch. The last two cannot be run yet,
-because the code they test belongs to a later phase.
+These are the four validations that must pass before launch. The last cannot be run yet, because
+the code it tests has not been written.
 
 | Gate                                                                                      | Phase | Status                                         |
 | ----------------------------------------------------------------------------------------- | ----- | ---------------------------------------------- |
 | SGP4 matches the test vectors in Vallado et al. (2006), "Revisiting Spacetrack Report #3" | 2     | **Pass, with one documented exception** (V2.1) |
 | ISS passes match NASA Spot the Station or Heavens-Above for at least three locations      | 4     | **Pass**, Heavens-Above, four locations (V4.2) |
-| Breakup model reproduces the published size-distribution curves and conserves momentum    | 6     | Not yet run                                    |
+| Breakup model reproduces the published size-distribution curves and conserves momentum    | 6     | **Pass, with stated limits** (V6.1)            |
 | J2 propagation matches the analytic secular nodal precession rate                         | 6     | Not yet run                                    |
 
 ## Phase 1
@@ -1113,3 +1113,95 @@ the last left no filter on. The growth chart's file was not requested until the 
 machine's fonts. That browser reported that reduced motion is asked for, so the chart opened on its
 last month and did not play by itself; playing was therefore not seen on the live site, only in the
 tests. The browser pane was in the background, so no frame rate was measured.
+
+## Phase 6 (in progress)
+
+### V6.1 The breakup model (launch gate 3)
+
+- **Date:** 2026-11-15
+- **What is checked:** `src/sim/breakupModel.ts`, the NASA Standard Breakup Model: fragment
+  counts and sizes, area-to-mass ratio, area, mass and ejection speed. It is not yet used by the
+  app; "What if?" mode still says it has not been built.
+- **Reproduce:** `VALIDATION_LOG=/tmp/measurements.txt npm run test -- tests/validation/breakup-model src/sim`
+
+**Where the equations and constants came from.** The brief asks for them to be verified from the
+paper (Johnson, Krisko, Liou and Anz-Meador, 2001) or a reliable secondary source, and for
+anything from memory to be flagged. **The paper itself was not read: it is behind a publisher's
+paywall.** What was read instead, all on 2026-11-15:
+
+| Part of the model                                                               | Checked against                                                                                                                                                            | Kind of source                   |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| Explosions: N = 6 S Lc^−1.6, S between 0.1 and 1                                | Krisko, "Proper Implementation of the 1998 NASA Breakup Model", Orbital Debris Quarterly News 15-4 (2011), p. 5                                                            | NASA's own note; text of the PDF |
+| Collisions: N = 0.1 M^0.75 Lc^−1.71                                             | The same, eq. 2                                                                                                                                                            | The same                         |
+| M: both masses if catastrophic; lighter mass × (impact speed in km/s)² if not   | The same, eqs. 3 and 4. The words giving the unit of speed did not survive the text extraction; km/s is from the two implementations below                                 | The same, partly                 |
+| The power laws hold from 1 mm to over 1 m; leftover mass goes into large pieces | The same                                                                                                                                                                   | The same                         |
+| Catastrophic above 40 J/g                                                       | ESA/TU Munich implementation (github.com/esa/NASA-breakup-model-cpp, commit ddd9657); a search excerpt of ODQN 5-1 mentions thresholds of 30, 40 and 60 J/g being compared | Secondary                        |
+| Area-to-mass: all coefficients, for spacecraft, rocket bodies and small pieces  | ESA/TU Munich implementation and MIT's MOCAT-MC (`func_Am.m`), read independently                                                                                          | Secondary, two sources           |
+| Average area from Lc; mass = area ÷ (A/M)                                       | ESA/TU Munich implementation                                                                                                                                               | Secondary, one source            |
+| Ejection speed: mean 0.2χ + 1.85 (explosion), 0.9χ + 2.9 (collision), σ = 0.4   | ESA/TU Munich implementation                                                                                                                                               | Secondary, one source            |
+| Size of an intact object from its mass (density 92.937 d^−0.74)                 | ESA/TU Munich implementation                                                                                                                                               | Secondary, one source            |
+
+All of the "secondary" values also agree with my memory of the paper, which is worth little on its
+own and is stated only so that it is not mistaken for a check.
+
+**Three findings from comparing sources.**
+
+1. The two implementations disagree in one place: for rocket bodies, ESA's code starts σ₂ at −0.28
+   and MIT's at +0.28. A standard deviation cannot be negative, and only +0.28 makes the function
+   continuous. This project uses +0.28, and a test checks that every coefficient function is
+   continuous, which is how the discrepancy was noticed.
+2. Both implementations sample the area-to-mass ratio of large fragments by adding a weighted
+   sample from each of two normal distributions. The model, as I recall it and as the word
+   "bimodal" implies, defines the distribution as a weighted sum of two normal _densities_, which
+   is a mixture and gives two humps; adding samples gives one hump. **This project samples the
+   mixture, and so departs from both implementations. This rests on memory of the paper and
+   should be checked against the paper's equation before launch.**
+3. Between 8 cm and 11 cm the model calls for a bridging function that, as far as could be found,
+   is not defined (a 2020 paper on arXiv, 2008.03657, says the same and that its authors received
+   no answer). This project blends the two distributions linearly, as ESA's code does.
+
+**The size distribution (the gate).** Clouds were generated with no limit on mass, so that the
+whole curve is drawn, and counted above three sizes. "Published" is the curve between that size
+and 1 m, where sampling stops.
+
+| Case                                                            | Fragments of at least | Published curve | Generated |
+| --------------------------------------------------------------- | --------------------- | --------------- | --------- |
+| Catastrophic collision, M = 1,460 kg (one cloud, seed 20261115) | 0.1 m                 | 1,187.7         | 1,220     |
+|                                                                 | 0.2 m                 | 346.6           | 343       |
+|                                                                 | 0.5 m                 | 53.7            | 57        |
+| Explosion, S = 1 (one cloud, seed 1961)                         | 0.1 m                 | 232.9           | 208       |
+|                                                                 | 0.2 m                 | 72.8            | 66        |
+|                                                                 | 0.5 m                 | 12.2            | 12        |
+
+Every difference is within three times the square root of the count, the scatter expected of a
+random draw; that is the limit the test asserts.
+
+**Against a number NASA gave for a real event.** For Iridium 33 and Cosmos 2251 (560 kg and about
+900 kg), NASA wrote in April 2009 that a body-to-body hit would have produced about 1,300 tracked
+pieces (Orbital Debris Quarterly News 13-2, p. 2). The formula gives 1,211 pieces of 10 cm or
+more. The two agree to 7%, and would agree exactly if "tracked" meant 9.6 cm or more. NASA has
+since catalogued 2,372 pieces from the two satellites (V5.2), so the model, correctly implemented,
+underestimates this event by about half. For Fengyun-1C (about 950 kg; the interceptor's mass is
+not public) it gives about 880 against 3,532 catalogued. These are disagreements between the model
+and reality, not faults of this implementation, and they are to be stated on the About page.
+
+**Mass and momentum.** Fifty clouds of the same collision, with 1,460 kg to conserve:
+
+| Quantity                                                                          | Measured             |
+| --------------------------------------------------------------------------------- | -------------------- |
+| Largest error in total mass                                                       | 4.5 × 10⁻¹³ kg       |
+| Net momentum as a fraction of the sum of the fragments' own momenta, as generated | mean 8.9%, worst 23% |
+| The same after the mean velocity is taken out                                     | below 10⁻¹⁵          |
+| Largest change that makes to a fragment's velocity                                | 14.5 m/s             |
+
+The published model throws each fragment in an independent random direction, so a finite cloud is
+left with some net momentum. "Approximately conserved" in the gate is met as generated only in the
+sense of those percentages. `withoutNetMomentum` removes the remainder exactly by shifting every
+fragment by the same velocity; it is labelled a simplification, it is not part of the published
+model, and whether the simulator uses it is still to be decided.
+
+**Result: pass, with stated limits.** The size distribution, which is what the gate names, is
+verified against NASA's own statement of it. The area-to-mass and speed distributions rest on
+secondary sources and, at one point, on memory. Not implemented: any cap on ejection speed; the
+choice of S by type of exploding body; any difference in treatment between the two bodies of a
+collision.

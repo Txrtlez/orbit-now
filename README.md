@@ -24,7 +24,7 @@ tracked object (see "Data source"). What is still unproven is listed first under
 | 3     | Earth rendering, all objects moving, picking, info panel, filters, search | Done. Frame rate measured by the owner at 240 fps (PC) and 60 fps (phone), before the interaction features were added              |
 | 4     | Overhead passes with visibility; time controls                            | Done. ISS passes agree with Heavens-Above at four places (launch gate 2). The bright-objects group awaits its first download       |
 | 5     | Historical debris layers; growth-of-orbit chart                           | Done. Nothing of the 2021 Cosmos 1408 cloud is in the data, and the site says so. The chart's numbers were read from a NASA figure |
-| 6     | "What if?" mode: breakup model, propagation, reentry, cascade statistics  | Not started                                                                                                                        |
+| 6     | "What if?" mode: breakup model, propagation, reentry, cascade statistics  | Started. The breakup model is written and tested (VALIDATION.md, V6.1) but not yet used by the app; nothing else is built          |
 | 7     | Guided tour, shareable links, About page, accessibility, launch           | Not started                                                                                                                        |
 
 ## Run it
@@ -84,9 +84,9 @@ GitHub Pages on a free account requires the repository to be public.
 
 Every comparison against an outside reference is recorded in [`VALIDATION.md`](./VALIDATION.md),
 with numbers, dates and the command that reproduces it. Of the four launch gates, the SGP4 test
-vectors pass with one documented exception and the ISS passes agree with Heavens-Above at four
-places; the other two (breakup-model curves, J2 nodal precession) belong to Phase 6 and are listed
-there as not yet run. Phase 5 has no launch gate; its checks are V5.1 to V5.7.
+vectors pass with one documented exception, the ISS passes agree with Heavens-Above at four
+places, and the breakup model reproduces NASA's size-distribution curves with stated limits (V6.1);
+the fourth (J2 nodal precession) belongs to the rest of Phase 6 and is listed as not yet run. Phase 5 has no launch gate; its checks are V5.1 to V5.7.
 
 The validation tests assert limits; the numbers actually measured are written to a file when asked:
 
@@ -114,6 +114,7 @@ src/
                            selection ring, picking, camera framing
   catalog/                 The catalog file format (shared with the pipeline), its loader, object
                            categories, satellite-catalog code tables, the per-object index
+  sim/                     Physics for "What if?" mode: so far the breakup model only
   growth/                  The growth-of-orbit chart, loaded on demand: NASA's figure as read,
                            its conversion to counts, the chart itself, and a README on provenance
   modes/whatif/            "What if?" mode, loaded on demand as a separate file
