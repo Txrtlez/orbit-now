@@ -1040,7 +1040,7 @@ same figures. The validator is a development tool and is not part of this reposi
   `f207a3e`, 21:09 UTC) failed, and so did the first CI run of this phase (43764218857). Both failed
   the same phone-sized browser test, twice each: after closing an object's details, tapping an
   object again did not show its details. Neither commit had touched that code, the same test had
-  passed five times in the previous hour, and it passed in the build environment throughout.
+  passed in all six workflow runs of the previous hour, and it passed in the build environment throughout.
 - **Cause.** After a touch ends, a browser sends a click to the same spot, to whatever is there by
   then. On a phone-sized screen a tap on an object brings its sheet of details up under the finger.
   The click then lands on the sheet, and if the finger was where the sheet's close button appears,
