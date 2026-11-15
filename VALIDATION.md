@@ -1318,7 +1318,12 @@ For Fengyun-1C there is a like-for-like figure. Johnson and others ("The charact
 consequences of the break-up of the Fengyun-1C spacecraft", IAC-07-A6.3.01, NASA NTRS 20070007324)
 wrote that the standard model "would predict about 1000 debris of that size remaining in orbit
 after the first day". This implementation leaves **788** in orbit after the first day, of 863
-made. That is 21% below NASA's round figure. I have not established the cause. Candidates: NASA
+made. (The formula itself gives 878 for 950 kg; the 17 pieces it would make larger than 1 m are
+replaced here by 3 large remnants, V6.1.) That is 21% below NASA's round figure. I have not
+established the cause. A news report of February 2007 quotes NASA's Nicholas Johnson giving the
+model's figure as "about 950" (space.com, "China's anti-satellite test: worrisome debris cloud
+circles Earth"), which is what the formula gives for about 1,060 kg, so NASA probably used a
+larger mass than 950 kg; that is my inference, not something a source says. Candidates: NASA
 may have included the interceptor's mass or used a larger satellite mass; and this simulation
 puts the satellite on a circular orbit and throws 8% of the pieces straight down into the air.
 A NASA presentation of 2010 (NTRS 20100035122) says the real cloud had "more fragments, and more
