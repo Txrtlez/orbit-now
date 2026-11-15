@@ -213,6 +213,41 @@ test('clears the selection with the close button, the Escape key, or a tap on em
   await expect(html).not.toHaveAttribute('data-selected');
 });
 
+test('a tap on an object does not also press whatever comes up under the finger', async ({
+  page,
+  hasTouch,
+}) => {
+  test.skip(!hasTouch, 'Only a touch is followed by a click made up by the browser');
+  await loadWithObjects(page);
+  // Record every click and mouse press the page receives, and on what.
+  await page.evaluate(() => {
+    const seen: string[] = [];
+    (window as unknown as { seenPresses: string[] }).seenPresses = seen;
+    for (const type of ['click', 'mousedown', 'mouseup']) {
+      document.addEventListener(
+        type,
+        (event) => {
+          const target = event.target instanceof Element ? event.target : null;
+          seen.push(`${type} on ${target?.id ?? ''} ${target?.className.toString() ?? ''}`);
+        },
+        true,
+      );
+    }
+  });
+  const found = await waitForClickableObject(page);
+  await page.touchscreen.tap(found.x, found.y);
+  await expect(page.locator('#object-panel')).toBeVisible();
+  // A browser sends its made-up click straight after the touch; give it time to arrive.
+  await page.waitForTimeout(500);
+  // On a phone the object's sheet opens under the finger. A click made up
+  // by the browser would land on the sheet: on its close button, if that is
+  // where the finger was.
+  expect(
+    await page.evaluate(() => (window as unknown as { seenPresses: string[] }).seenPresses),
+  ).toEqual([]);
+  await expect(page.locator('#object-panel')).toBeVisible();
+});
+
 test('does not select anything when the globe is dragged', async ({ page }) => {
   await loadWithObjects(page);
   const viewport = page.viewportSize();

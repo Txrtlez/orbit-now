@@ -490,8 +490,13 @@ export function mountGrowthChart(container: HTMLElement, options: GrowthChartOpt
   };
   picture.addEventListener('pointerdown', showAtPointer);
   picture.addEventListener('pointermove', (event) => {
-    // A mouse shows the month it hovers over; a finger must be down.
-    if (event.pointerType === 'mouse' || event.buttons !== 0) {
+    if (event.buttons !== 0) {
+      // A press that is dragged across the plot moves through the months.
+      showAtPointer(event);
+    } else if (event.pointerType === 'mouse' && !playing) {
+      // A mouse resting over the plot shows the month it is over, but does
+      // not interrupt the film: the dialog usually opens right under the
+      // pointer, and the browser reports that as a movement.
       showAtPointer(event);
     }
   });

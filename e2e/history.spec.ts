@@ -264,14 +264,29 @@ test('plays from 1957 when motion is allowed, and can be paused', async ({ page 
   await expect.poll(monthShown).toBeGreaterThan(24);
   expect(await monthShown()).toBeLessThan(832);
 
-  // The page behind the dialog has a Pause button of its own (for the clock).
+  // A mouse that happens to be over the plot does not stop the film. (The
+  // dialog opens under the pointer, which a browser reports as a movement.)
   const dialog = page.getByRole('dialog', { name: 'Growth of orbit' });
+  const plot = await dialog.locator('.growth-plot svg').boundingBox();
+  if (plot === null) {
+    throw new Error('The plot has no size');
+  }
+  await page.mouse.move(plot.x + plot.width * 0.3, plot.y + plot.height * 0.5);
+  await page.mouse.move(plot.x + plot.width * 0.32, plot.y + plot.height * 0.5);
+  await expect(body).toHaveAttribute('data-playing', 'true');
+
+  // The page behind the dialog has a Pause button of its own (for the clock).
   await dialog.getByRole('button', { name: 'Pause' }).click();
   await expect(body).toHaveAttribute('data-playing', 'false');
   const paused = await monthShown();
   await page.waitForTimeout(400);
   expect(await monthShown()).toBe(paused);
   await expect(dialog.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
+
+  // Once it has stopped, pointing at the plot shows the month pointed at.
+  await page.mouse.move(plot.x + plot.width * 0.5, plot.y + plot.height * 0.5);
+  await expect.poll(monthShown).not.toBe(paused);
+  await expect(body).toHaveAttribute('data-playing', 'false');
 });
 
 test('gives the same figures as a table, and explains their limits', async ({ page }) => {

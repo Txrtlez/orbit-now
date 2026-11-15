@@ -5,25 +5,27 @@ debris-cascade ("Kessler syndrome") simulator.
 
 **Live site:** <https://txrtlez.github.io/orbit-now/>
 
-**Status: Phases 1 to 4 are done.** The site shows the Earth with its real day and night sides and
+**Status: Phases 1 to 5 are done.** The site shows the Earth with its real day and night sides and
 about 19,500 objects moving in real time. Click or tap an object to see what it is, where it is
 and the path of its orbit; search by name or number; filter by constellation, orbit, launch year,
 kind and owner. The clock can be paused, run at up to 600 times normal speed, or moved three days
 either way. Give a place (your device's position, a city, or coordinates) and the site lists the
 passes of the space stations and other bright satellites over it for the next five days, and
-which of them can be seen. The data covers active satellites, three debris clouds and CelesTrak's
-list of the brightest objects, not every tracked object (see "Data source"). What is still
-unproven is listed first under "Known issues".
+which of them can be seen. Three documented break-ups (2007, 2009 and 2021) can be opened to read
+what happened and to leave only what remains of each debris cloud on the globe, and a chart plays
+through NASA's count of catalogued objects month by month since 1957. The data on the globe covers
+active satellites, three debris clouds and CelesTrak's list of the brightest objects, not every
+tracked object (see "Data source"). What is still unproven is listed first under "Known issues".
 
-| Phase | Scope                                                                     | State                                                                                                                        |
-| ----- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| 1     | Repository structure, tooling, CI, deploy pipeline, empty app             | Done                                                                                                                         |
-| 2     | Scheduled OMM data pipeline; SGP4 validated against published vectors     | Done, with one documented exception in the SGP4 gate                                                                         |
-| 3     | Earth rendering, all objects moving, picking, info panel, filters, search | Done. Frame rate measured by the owner at 240 fps (PC) and 60 fps (phone), before the interaction features were added        |
-| 4     | Overhead passes with visibility; time controls                            | Done. ISS passes agree with Heavens-Above at four places (launch gate 2). The bright-objects group awaits its first download |
-| 5     | Historical debris layers; growth-of-orbit chart                           | Not started                                                                                                                  |
-| 6     | "What if?" mode: breakup model, propagation, reentry, cascade statistics  | Not started                                                                                                                  |
-| 7     | Guided tour, shareable links, About page, accessibility, launch           | Not started                                                                                                                  |
+| Phase | Scope                                                                     | State                                                                                                                              |
+| ----- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | Repository structure, tooling, CI, deploy pipeline, empty app             | Done                                                                                                                               |
+| 2     | Scheduled OMM data pipeline; SGP4 validated against published vectors     | Done, with one documented exception in the SGP4 gate                                                                               |
+| 3     | Earth rendering, all objects moving, picking, info panel, filters, search | Done. Frame rate measured by the owner at 240 fps (PC) and 60 fps (phone), before the interaction features were added              |
+| 4     | Overhead passes with visibility; time controls                            | Done. ISS passes agree with Heavens-Above at four places (launch gate 2). The bright-objects group awaits its first download       |
+| 5     | Historical debris layers; growth-of-orbit chart                           | Done. Nothing of the 2021 Cosmos 1408 cloud is in the data, and the site says so. The chart's numbers were read from a NASA figure |
+| 6     | "What if?" mode: breakup model, propagation, reentry, cascade statistics  | Not started                                                                                                                        |
+| 7     | Guided tour, shareable links, About page, accessibility, launch           | Not started                                                                                                                        |
 
 ## Run it
 
@@ -84,7 +86,7 @@ Every comparison against an outside reference is recorded in [`VALIDATION.md`](.
 with numbers, dates and the command that reproduces it. Of the four launch gates, the SGP4 test
 vectors pass with one documented exception and the ISS passes agree with Heavens-Above at four
 places; the other two (breakup-model curves, J2 nodal precession) belong to Phase 6 and are listed
-there as not yet run.
+there as not yet run. Phase 5 has no launch gate; its checks are V5.1 to V5.6.
 
 The validation tests assert limits; the numbers actually measured are written to a file when asked:
 
@@ -100,8 +102,8 @@ src/
   main.ts                  Start-up: wires the globe, the data and the interface together
   styles.css               All styling
   app/                     Interface code that is not 3D: selection, the object card, search,
-                           filters, the clock and time bar, the passes panel, number
-                           formatting, tabs
+                           filters, the debris events, the clock and time bar, the passes
+                           panel, number formatting, tabs
   geo/                     Earth geometry: WGS 84 constants, coordinate conversions both ways,
                            where something appears in an observer's sky
   passes/                  Pass prediction and visibility, which satellites to predict for,
@@ -112,6 +114,8 @@ src/
                            selection ring, picking, camera framing
   catalog/                 The catalog file format (shared with the pipeline), its loader, object
                            categories, satellite-catalog code tables, the per-object index
+  growth/                  The growth-of-orbit chart, loaded on demand: NASA's figure as read,
+                           its conversion to counts, the chart itself, and a README on provenance
   modes/whatif/            "What if?" mode, loaded on demand as a separate file
 pipeline/                  Data pipeline: download, check, merge, publish (runs in GitHub Actions)
 tests/validation/          Launch-gate validations against published reference data
@@ -217,8 +221,8 @@ exist in the built output, so that is what is tested.
 
 `npm run size` fails the build if the HTML, JavaScript and CSS needed for first paint exceed 300 kB
 after gzip. The number was chosen in Phase 1 to leave headroom above the 138.0 kB of the time. At
-the end of Phase 3 the figure is 167.2 kB; the catalog (about 0.7 MB) is fetched after the page has
-started and is not counted.
+the end of Phase 3 the figure was 167.2 kB and at the end of Phase 5 it is 179.8 kB; the catalog
+(about 0.7 MB) is fetched after the page has started and is not counted.
 
 ### 7. System fonts
 
@@ -388,6 +392,58 @@ too faint to see. Two sets are used: the two space stations, found by catalog nu
 it makes a long list. Adding that group also brings into the catalog some spent rocket stages and
 dead satellites that the "active" group leaves out.
 
+### 24. A debris event is a setting of the filters, and says so
+
+Opening one of the three break-ups under "Debris from three break-ups" leaves only its debris on
+the globe. It does that by setting the filters to that event's group or groups and nothing else,
+exactly as if the viewer had pressed the buttons. The filters therefore remain the single record
+of what is on the globe: their section shows "(on)", the headline shows the count, and if the
+viewer changes them by hand the event closes, or opens, to match. The alternative, a second and
+separate way of hiding objects, was rejected because two mechanisms that can disagree are harder
+to explain to a viewer and harder to put in a shareable link later.
+
+The Cosmos 1408 test of 2021 is listed although the catalog holds none of its debris (VALIDATION.md,
+V5.3). The brief asks for it, and leaving it out silently would suggest the site had covered the
+well-known events when it had not. Its entry tells the story, gives NASA's counts and states
+that nothing can be drawn and that today's number of pieces is not known.
+
+Everything said about the three events is in one file, `src/app/events.ts`, with the publication
+and page for each statement in VALIDATION.md, V5.2.
+
+### 25. The growth chart's numbers were read from the lines of a NASA figure
+
+The brief asks for historical counts from NASA's Orbital Debris Program Office or ESA's Space
+Environment Report. Both publish the history as a chart and neither publishes the table. In
+NASA's PDF the chart is a vector drawing whose five lines are paths with one vertex per month, so
+the values were taken from the file's drawing instructions and scaled by the chart's own tick
+marks. That gives 833 monthly values per line, each within roughly ten objects of what NASA
+plotted (VALIDATION.md, V5.1), which is far better than reading a picture by eye and is still not
+the same as having NASA's table. The interface therefore rounds every figure to the nearest ten,
+declines to name a count below 20, and says how the numbers were obtained.
+
+The values are kept as read, in the units of the PDF, with a checksum (`src/growth/odqnFigure.ts`),
+and converted to objects in code that is tested. When NASA publishes a newer chart the procedure in
+`src/growth/README.md` has to be repeated by hand; it is not part of the data pipeline.
+
+Deriving the history from a full satellite catalog (launch and decay dates of every object) was
+the alternative. It was not done: this site's catalog is not the full one, and the brief asks for a
+citable source's counts, not this project's own.
+
+### 26. Five lines in a dialog, not stacked areas in a card
+
+The chart draws the total and the four kinds as five lines, as NASA's does. Stacked areas are the
+usual picture for "by type", but since December 2018 NASA's total runs above its four kinds added
+together, so the top edge of a stack would be a line NASA did not draw. The chart plays from 1957
+to the present in 14 seconds when opened; it shows the last month and waits if the viewer has asked
+for reduced motion. The month in view can be set with a slider (which works from the keyboard) or
+by pointing at the plot, the legend gives every line's figure for that month, and a table gives the
+figures by decade, so nothing depends on seeing the picture or on telling colours apart.
+
+It opens in a dialog over the page because it needs more room than a card beside the globe has,
+and because the browser's own dialog element takes care of keyboard focus and the Escape key. Its
+code and data (34 kB, 10 kB compressed) are fetched when it is first opened and are not part of
+the first download.
+
 ## Data source
 
 **What the site shows.** Orbital data comes from [CelesTrak](https://celestrak.org), which
@@ -416,8 +472,12 @@ the launch year from the international designator and shows nothing for the rest
 tracked object, and that turned out not to be available from CelesTrak in one query: its GP data is
 served in named groups, none of which covers all rocket bodies, inactive satellites and debris, and
 its documentation asks users not to download all the groups. There is also no group for Cosmos 1408
-debris, which affects the historical layers planned for Phase 5. The app states the limitation next
-to the object count.
+debris (decision 24). The app states the limitation next to the object count.
+
+**The growth chart is a separate source.** Its counts are NASA's, from one figure in Orbital Debris
+Quarterly News of July 2026, as of 3 May 2026 (decision 25). They are counts of the whole public
+catalog, about 33,500 objects, and so are not comparable with the 19,500 or so that this site
+draws. The chart says so.
 
 **Why this choice, and how to change it.** The alternatives were Space-Track.org (the full
 catalog, but it needs an account, and whether its user agreement allows republishing the data on a
@@ -496,6 +556,27 @@ Unproven parts of Phases 3 and 4, most important first:
   lists (spent rocket stages, dead satellites) are drawn grey. It should be revisited if the full
   catalog is ever added.
 
+Unproven or incomplete parts of Phase 5:
+
+- **The text about the three break-ups was checked by an automated page reader, not by a person.**
+  Each statement has a NASA publication and page against it (VALIDATION.md, V5.2), and where two
+  publications overlap they agree. Reading those pages yourself would be the real check; it is
+  twenty rows.
+- **The growth chart's numbers are a reading of a figure.** They are good to roughly ten objects
+  and were checked several ways (V5.1), but NASA's own table was never seen. NASA's chart and the
+  "box score" table in the same issue disagree by about 1%, for a reason that was not found.
+- **Since late 2018 the chart's total is larger than its four kinds added together,** by about 680
+  objects in May 2026. NASA's chart does not explain it and the site does not guess.
+- **The growth chart will go out of date.** It ends on 3 May 2026. Updating it means repeating the
+  procedure in `src/growth/README.md` on a newer issue; nothing does that automatically.
+- **Nothing of the Cosmos 1408 cloud is drawn, and today's number of pieces is not known.** A query
+  that might show the last few was considered and not added (V5.3); say if you want it.
+- **"In today's data" is not "still in orbit".** The count shown for each cloud is the size of
+  CelesTrak's list, which was made differently from NASA's count of pieces in orbit (V5.4).
+- **The break-ups are marked on the growth chart but the two are not linked:** a mark cannot be
+  clicked to open the event.
+- **The chart has only been looked at in Chromium,** like the rest of the site.
+
 Limits of the passes panel:
 
 - **"Visible" says nothing about brightness, weather or obstructions.** A low pass of a small
@@ -562,5 +643,9 @@ Carried over:
 - City names, positions and time zones: [GeoNames](https://www.geonames.org) (CC BY 4.0), through
   the npm package `cities-15000-structured` by Adam Averay (MIT licence).
 - Reference pass tables used in testing: [Heavens-Above](https://www.heavens-above.com).
+- Growth of orbit: NASA Orbital Debris Program Office, _Orbital Debris Quarterly News_, volume 30,
+  issues 1 & 2 (July 2026), page 9. Facts about the three break-ups: the same newsletter, issues
+  11-2, 12-1, 13-2, 27-1 and 28-2, and NASA's _History of On-orbit Satellite Fragmentations_, 16th
+  edition (NASA/TP-20220019160).
 - Earth imagery: NASA Earth Observatory, Blue Marble Next Generation (2004) and Black Marble (2012).
   Provenance and the one change made are in `public/textures/README.md`.

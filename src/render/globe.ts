@@ -390,6 +390,18 @@ export function createGlobe(options: GlobeOptions): Globe {
   const onPointerLeave = (): void => {
     options.onHover?.(null);
   };
+  // After a touch ends, a browser follows it with a click at the same
+  // spot, sent to whatever is under the finger by then. A tap that selects
+  // an object brings a sheet of controls up under the finger, so that click
+  // would press one of them: closing the sheet that had just opened, for
+  // instance. Nothing on the canvas needs the click (taps are read from
+  // pointer events, above), so it is cancelled at its source.
+  const onTouchEnd = (event: TouchEvent): void => {
+    if (event.cancelable) {
+      event.preventDefault();
+    }
+  };
+  canvas.addEventListener('touchend', onTouchEnd, { passive: false });
   canvas.addEventListener('pointerdown', onPointerDown);
   canvas.addEventListener('pointermove', onPointerMove);
   canvas.addEventListener('pointerup', onPointerUp);
@@ -652,6 +664,7 @@ export function createGlobe(options: GlobeOptions): Globe {
       document.removeEventListener('visibilitychange', onVisibilityChange);
       canvas.removeEventListener('webglcontextlost', onContextLost);
       canvas.removeEventListener('webglcontextrestored', onContextRestored);
+      canvas.removeEventListener('touchend', onTouchEnd);
       canvas.removeEventListener('pointerdown', onPointerDown);
       canvas.removeEventListener('pointermove', onPointerMove);
       canvas.removeEventListener('pointerup', onPointerUp);

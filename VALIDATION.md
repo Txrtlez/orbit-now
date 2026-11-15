@@ -816,3 +816,219 @@ days, the first two being the ISS at 6:47:19 PM to 6:48:02 PM EST on 15 November
 (23:47:19 to 23:48:03, and 22:57:36 to 23:01:37 UTC), apart from one second on one end time. The
 test location was erased from the browser afterwards. The option for other bright satellites was
 absent, as expected before the group's first download (V4.4).
+
+## Phase 5
+
+### V5.1 The growth-of-orbit series, read from NASA's chart
+
+- **Date:** 2026-11-15
+- **What is checked:** the monthly counts behind the "Growth of orbit" chart
+  (`src/growth/odqnFigure.ts`, converted by `src/growth/series.ts`): 833 months, January 1957 to
+  May 2026, for the total and four kinds of object.
+- **Source:** NASA Orbital Debris Program Office, _Orbital Debris Quarterly News_, volume 30,
+  issues 1 & 2 (July 2026), page 9, "Monthly Number of Cataloged Objects in Earth Orbit by Object
+  Type as of 3 May 2026". NASA publishes the chart and not the numbers, so they were taken from the
+  coordinates of the chart's five lines in the PDF, which are vector paths of 833 vertices each.
+  The whole procedure, the calibration of the axis and the reasons for it are in
+  `src/growth/README.md`.
+- **Reproduce:** `VALIDATION_LOG=/tmp/measurements.txt npm run test -- tests/validation/growth-figure src/growth`
+
+**The copy is exact.** The values passed from a browser on the owner's PC to this repository as
+text. A checksum of each line (sum, and sum weighted by position, modulo 1,000,000,007) was
+computed in the browser and again here:
+
+| Line                   | Sum        | Weighted sum | Match |
+| ---------------------- | ---------- | ------------ | ----- |
+| Total Objects          | 92,581,827 | 830,285,712  | Yes   |
+| Spacecraft             | 23,181,778 | 828,779,048  | Yes   |
+| Fragmentation Debris   | 48,264,417 | 266,289,320  | Yes   |
+| Rocket Bodies          | 9,527,490  | 450,686,349  | Yes   |
+| Mission-related Debris | 11,292,036 | 35,616,458   | Yes   |
+
+**The chart against itself.** The chart draws a total and four kinds. Where the total is the sum
+of the four, five separately read lines have to agree.
+
+| Quantity                                                                   | Measured                              |
+| -------------------------------------------------------------------------- | ------------------------------------- |
+| Months from January 1957 to November 2018                                  | 743                                   |
+| Largest difference between the total and the sum of the four kinds         | 37 objects                            |
+| Mean difference                                                            | 8.4 objects                           |
+| Spacing of the grid the lines were drawn on                                | 14.3 objects                          |
+| Vertices not on that grid, of 833: the four kinds                          | 1 each                                |
+| Vertices not on that grid, of 833: the total (a heavier line)              | 90                                    |
+| The total minus the four kinds, each January from 2019 to 2026, in objects | 65, 110, 137, 194, 338, 481, 538, 611 |
+| The same in the last month, May 2026                                       | 680                                   |
+
+Reading: a difference of at most 37 and typically 8, from five lines each read to a 14-object
+grid, is what a correct reading gives and what a wrong axis, a wrong scale or two swapped lines
+would not. So for 62 years the series is confirmed to about ten objects per value. From December
+2018 the total runs above the four kinds by a steadily growing amount. That is in the chart, not
+in the reading: the reading had the same resolution on both sides of that date. **The chart does
+not say what the difference is**, and neither does this site; it draws the total and the four kinds
+as NASA drew them and states that they differ.
+
+**The chart against numbers NASA printed.** These are comparisons with tables, not with the chart.
+
+| Comparison                                                                                        | Chart  | Printed | Difference |
+| ------------------------------------------------------------------------------------------------- | ------ | ------- | ---------- |
+| Rise in fragmentation debris, December 2006 to January 2007, against Fengyun-1C debris catalogued | 3,479  | 3,532   | −1.5%      |
+| Rise, January to February 2009, against Cosmos 2251 and Iridium 33 debris catalogued              | 2,348  | 2,372   | −1.0%      |
+| Rise, October to November 2021, against Cosmos 1408 debris catalogued                             | 1,829  | 1,785   | +2.5%      |
+| Total in the last month, against the Satellite Box Score of 4 May 2026                            | 33,475 | 33,098  | +1.1%      |
+| Spacecraft in the last month, against the same table                                              | 17,954 | 18,189  | −1.3%      |
+| Everything that is not a spacecraft, against the same table                                       | 15,521 | 14,909  | +4.1%      |
+
+The printed break-up counts are from the table of the ten worst break-ups in Orbital Debris
+Quarterly News 27-1 (March 2023, p. 2), as of 31 January 2023; the box score is on page 14 of the
+same issue as the chart. The three largest monthly rises in the whole fragmentation series fall in
+January 2007, February 2009 and November 2021, the months of the three break-ups, which confirms
+the reading of the time axis to the month. Limits asserted by the test: 3% for the break-ups, 2% for
+the box-score total and spacecraft.
+
+**A disagreement that is recorded, not explained.** The chart's last point and the box score are a
+day apart and come from the same office, yet the chart has 377 more objects in all, 235 fewer
+spacecraft and 612 more of everything else. The two are evidently compiled differently. Nothing
+read for this entry says how. A misread axis would move all three by the same percentage, which is
+not what is seen.
+
+**What the chart counts, which matters for reading it.** The fragmentation line rises by about
+3,480 in January 2007, although only 2,087 pieces of Fengyun-1C had been catalogued by the end of
+September 2007 (Orbital Debris Quarterly News 11-4, October 2007, read on 2026-11-15 as a search
+excerpt, not the full page). So the chart places each catalogued object at the date it came into
+being, not the date it entered the catalog. The site says this next to the chart.
+
+**From memory, not checked:** that the first satellite, Sputnik 1, was launched in October 1957.
+The chart's lines leave zero in October 1957, which agrees with it; the site's only use of the date
+is to write "nothing in orbit yet" for the nine months before.
+
+**Result: pass, with stated limits.** Each value is within roughly ten objects of what NASA
+plotted. Not done: a comparison of the recovered values with a second source of monthly counts
+(none was available without an account), or a point-by-point comparison with the printed chart by
+eye.
+
+### V5.2 The facts stated about the three break-ups
+
+- **Date:** 2026-11-15
+- **What is checked:** every date, time, place, height, mass and count in `src/app/events.ts`,
+  which is the text shown under "Debris from three break-ups".
+- **How:** each publication was read on 2026-11-15 through an automated page reader, which was
+  asked for the facts and the page they are on. A reader of that kind can misreport a number. The
+  two NASA publications that overlap agree with each other wherever both state a fact, which is the
+  check available here; the pages were not read by a person.
+- **Sources, abbreviated below:** HOOSF = NASA, _History of On-orbit Satellite Fragmentations_,
+  16th edition, NASA/TP-20220019160 (2022), cut-off 1 May 2022. ODQN = NASA, _Orbital Debris
+  Quarterly News_, by volume and issue.
+
+| Statement in the app                                                            | Source says                                                                                   | Where                               |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------- |
+| Fengyun-1C destroyed 11 January 2007, 22:26 UTC                                 | 11 Jan 2007, 2226 GMT                                                                         | HOOSF p. 456; ODQN 11-2 p. 2 (date) |
+| About 860 km up, at 35° N, 100° E                                               | 860 km; 35N, 100E. ODQN 11-2 gives the orbit as about 845 by 865 km                           | HOOSF p. 456                        |
+| A Chinese weather satellite, eight years old, a little under a tonne            | Launched 10 May 1999; 950 kg (HOOSF), 960 kg (ODQN 11-2); "8-year-old, nearly one-metric-ton" | HOOSF p. 456; ODQN 12-1 p. 2        |
+| Hit by an interceptor launched on a missile from Xichang                        | A ballistic interceptor launched from Xichang                                                 | ODQN 11-2 p. 2                      |
+| No other break-up on NASA's list left as many catalogued pieces                 | First of the ten worst break-ups by debris catalogued                                         | ODQN 27-1 p. 2                      |
+| Most debris expected to stay up for decades, some for centuries                 | Most thrown into orbits with lifetimes of decades and even centuries                          | ODQN 11-2 p. 2                      |
+| 3,532 catalogued, 2,793 in orbit on 31 January 2023                             | 3532 and 2793                                                                                 | ODQN 27-1 p. 2                      |
+| Iridium 33 and Cosmos 2251 collided 10 February 2009, 16:56 UTC                 | 10 Feb 2009, 1656 GMT                                                                         | ODQN 13-2 p. 1; HOOSF pp. 404, 440  |
+| About 790 km up, over the far north of Siberia                                  | "about 790 km", extreme northern Siberia; 788.597 km at 72.5N, 97.9E                          | ODQN 13-2 p. 1; HOOSF               |
+| Iridium 33 a working American satellite; Cosmos 2251 Russian, no longer in use  | Operational US communications satellite; decommissioned Russian communications satellite      | ODQN 13-2 p. 1                      |
+| More than 11 km per second, orbits almost at right angles                       | More than 11 km/s; orbital planes at nearly right angles                                      | ODQN 13-2 pp. 1-2                   |
+| First accidental collision of two intact satellites                             | First accidental hypervelocity collision of two intact spacecraft                             | ODQN 13-2 p. 1                      |
+| Cosmos 2251 the heavier, and left more pieces                                   | About 900 kg against 560 kg (556 kg in HOOSF); produced the larger number of tracked debris   | ODQN 13-2 p. 2                      |
+| 1,715 and 657 catalogued; 1,021 and 300 in orbit on 31 January 2023             | 1715, 1021; 657, 300                                                                          | ODQN 27-1 p. 2                      |
+| Cosmos 1408 destroyed 15 November 2021, 02:48 UTC                               | 15 Nov 2021, 0248 GMT                                                                         | HOOSF pp. 228-229                   |
+| About 480 km up, at 70° N, 48° E                                                | 479.5 km; 70.25 N, 48.39 E                                                                    | HOOSF p. 228                        |
+| A Soviet electronic-intelligence satellite launched in 1982, long out of use    | Launched 16 Sep 1982; a long-derelict Tselina-D-class electronic intelligence spacecraft      | HOOSF pp. 228-229                   |
+| Destroyed by Russia with a missile fired from the ground                        | A direct-ascent anti-satellite test by the Russian Federation                                 | HOOSF p. 229; ODQN 28-2 p. 2        |
+| 1,785 catalogued, 364 in orbit on 31 January 2023, fourteen months later        | 1785 and 364                                                                                  | ODQN 27-1 p. 2                      |
+| The cloud came down faster than first predicted because the Sun was more active | Fragments decayed faster than originally modelled, attributed to higher solar activity        | ODQN 28-2 pp. 2-4                   |
+
+**Words that are mine and not the sources':** "fired from the ground" for "direct-ascent"; "where
+there is very little air to slow things down" and "there is still enough air to bring debris down
+within years" as the reason height matters (the second is supported by HOOSF's expectation that
+about 90% of the Cosmos 1408 debris would re-enter within about five years).
+
+**Other counts NASA has printed for Cosmos 1408,** for the record: 1,760 catalogued and 990 in orbit
+on 1 May 2022 (HOOSF, Table 2.1); 1,805 catalogued by 3 February 2024 (ODQN 28-2). The app quotes
+only the 2023 pair, because that table gives both figures for all four clouds on one date.
+
+**Left out because it was not verified:** that the crew of the International Space Station took
+shelter after the Cosmos 1408 test. It is widely reported, but it was not in any of the NASA
+publications read for this entry, so the app does not say it.
+
+**Result: recorded.** Every statement has a source and a page. Open item: none of the pages was
+read by a person.
+
+### V5.3 What can be shown for Cosmos 1408
+
+- **Date:** 2026-11-15, five years to the day after the test.
+- **Question:** the brief lists this cloud as a layer made "by filtering the catalog". Is there
+  anything in the catalog to filter?
+
+| Check                                                                                    | Result                                                                                                                                                                             |
+| ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A CelesTrak group for the cloud                                                          | None. The current-data page lists Fengyun 1C, Iridium 33 and Cosmos 2251 debris only (checked 2026-11-14; a copy of the page dated 2026 Apr 19, read on 2026-11-15, says the same) |
+| Objects in this site's catalog of 2026-11-15T19:52Z with a designator beginning 1982-092 | 0 of 19,572                                                                                                                                                                        |
+| Has most of the cloud decayed? (This was "from memory" in the notes for this phase.)     | Yes, on NASA's figures: 364 of 1,785 catalogued pieces were in orbit on 31 January 2023, and NASA expected about 90% to re-enter within about five years                           |
+| How many pieces are in orbit today                                                       | **Not established.** Websites give 3, 4, 5 and 7; none is a source this project can cite, and one of them also says "hundreds" on another page                                     |
+
+**What the site does.** The event is listed with the other two, with its verified story and NASA's
+2023 counts, and says in so many words that the cloud cannot be singled out here, why, and that
+today's number is not known. The sentence about what the catalog holds from that launch is worked
+out from the data each time the page loads, so it cannot go stale. Opening this event does not
+hide anything on the globe.
+
+**A way to show the last pieces, not taken.** CelesTrak's documented query by international
+designator (`INTDES=1982-092`) would return whatever of that launch still has orbital data. It was
+not added: the answer would be a handful of objects at most; an empty answer is not a download the
+pipeline's checks know how to accept, so the run would be marked failed on the day the last piece
+re-enters; and the query cannot be tried from the build environment. It is the owner's call.
+
+### V5.4 The event layers on the real catalog
+
+- **Date:** 2026-11-15
+- **What is checked:** the built page with the published catalog of 2026-11-15T19:52Z (19,572
+  objects), in headless Chrome with software rendering, at 1280 × 800 and at Pixel 7 size.
+
+| Event opened               | Headline afterwards               | Objects of the event, by group     |
+| -------------------------- | --------------------------------- | ---------------------------------- |
+| Fengyun-1C, 2007           | "Showing 1,988 of 19,572 objects" | 1,988 (1 payload, 1,987 debris)    |
+| Iridium 33 and Cosmos 2251 | "Showing 690 of 19,572 objects"   | 581 Cosmos 2251 and 109 Iridium 33 |
+| Cosmos 1408, 2021          | "Showing 19,572 objects"          | none                               |
+
+Every object in the three groups has the international designator of the satellite that broke up
+(1999-025, 1993-036, 1997-051), and each group contains that satellite's own remaining body as its
+one payload. Screenshots were looked at by eye: the Fengyun-1C cloud is a shell around the Earth
+drawn in orange, the two clouds of the collision are drawn in purple and green.
+
+**An earlier open question, answered.** V3.9 noted that CelesTrak's satellite-catalog groups hold
+more rows than its orbital-element groups (3,532, 1,715 and 657 against 1,988, 581 and 109) and
+guessed that the extra rows are pieces that have re-entered. Those three row counts are exactly
+NASA's "debris catalogued" for the three clouds on 31 January 2023 (V5.2). So the satellite-catalog
+groups list every piece ever catalogued, and nothing has been added to any of the three since
+then.
+
+**What "in today's data" means.** It is the number of objects in CelesTrak's orbital-element group
+for the cloud. It is lower than NASA's in-orbit count of January 2023 (1,988 against 2,793; 581
+against 1,021; 109 against 300). Decay over nearly four years would lower it, and so would any
+difference in what the two lists include; how much is due to each was not worked out, and the app
+says only that the two counts were made differently on different dates.
+
+### V5.5 Colours of the growth chart
+
+- **Date:** 2026-11-15
+- **What is checked:** the four line colours, in their order (spacecraft `#3987e5`, fragmentation
+  debris `#d95926`, rocket bodies `#199e70`, mission-related debris `#c98500`), against the chart's
+  surface `#0d1320`, with a palette validator that simulates the common forms of colour blindness.
+
+| Check                                                               | Result                           |
+| ------------------------------------------------------------------- | -------------------------------- |
+| Lightness within the band for a dark surface                        | Pass, all four                   |
+| Colourfulness above the floor below which a hue reads as grey       | Pass, all four                   |
+| Separation of neighbouring colours under simulated colour blindness | Pass; worst pair 8.4 (target 8)  |
+| Separation of neighbouring colours with normal vision               | Pass; worst pair 19.8 (floor 15) |
+| Contrast against the surface                                        | Pass, all at least 3:1           |
+
+The worst pair is rocket bodies and mission-related debris, whose lines also run closest together.
+Colour is not the only way to tell the lines apart: the legend names each with its figure for the
+month in view, the names stand beside the line ends where there is room, and the table gives the
+same figures. The validator is a development tool and is not part of this repository.
