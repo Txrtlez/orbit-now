@@ -92,6 +92,7 @@ const VERTEX_SHADER = /* glsl */ `
   uniform float uDelta;     // seconds from keyframe X to keyframe Y (may be negative)
   uniform float uPointSize; // dot diameter in device pixels
   uniform float uPass;      // 0: draw only dimmed dots; 1: draw normal and emphasised dots
+  uniform float uBrightness; // 1 normally; less while something else is to stand out
 
   varying vec3 vColour;
 
@@ -114,7 +115,7 @@ const VERTEX_SHADER = /* glsl */ `
       ? projectionMatrix * modelViewMatrix * vec4(p, 1.0)
       : vec4(2.0, 2.0, 2.0, 1.0);
     gl_PointSize = uPointSize * (aState > 2.5 ? 1.7 : (dimmed ? 0.8 : 1.0));
-    vColour = aColour * (dimmed ? 0.3 : 1.0);
+    vColour = aColour * (dimmed ? 0.3 : 1.0) * uBrightness;
   }
 `;
 
@@ -149,6 +150,11 @@ export interface SatelliteLayer extends SceneLayer {
    * OBJECT_NORMAL or OBJECT_EMPHASISED). The array is copied.
    */
   setStates(states: Uint8Array): void;
+  /**
+   * Draw every dot at this fraction of its usual brightness (0 to 1), so
+   * that something drawn over the tracked objects stands out from them.
+   */
+  setBrightness(fraction: number): void;
   /** The display states currently in effect. Do not modify the returned array. */
   states(): Uint8Array;
   /**
@@ -200,6 +206,7 @@ export function createSatelliteLayer(
     uS: { value: 0 },
     uDelta: { value: 1 },
     uPointSize: { value: POINT_SIZE_CSS_PX },
+    uBrightness: { value: 1 },
   };
   const makePass = (pass: 0 | 1): { points: Points; material: ShaderMaterial } => {
     const material = new ShaderMaterial({
@@ -357,6 +364,9 @@ export function createSatelliteLayer(
       shared.uDelta.value = deltaSeconds;
       const scale = Math.min(1, Math.max(MIN_POINT_SCALE, viewMinCssPx / FULL_SIZE_VIEW_CSS_PX));
       shared.uPointSize.value = POINT_SIZE_CSS_PX * scale * pixelRatio;
+    },
+    setBrightness(fraction: number): void {
+      shared.uBrightness.value = Math.min(1, Math.max(0, fraction));
     },
     setStates(states: Uint8Array): void {
       if (states.length !== count) {

@@ -16,7 +16,8 @@ import { initSearchBox } from './app/searchBox';
 import { CATALOG_URL, loadCatalog } from './catalog/load';
 import { buildObjectIndex, categoryAt, type ObjectIndex } from './catalog/objectIndex';
 import { geodeticToEcef } from './geo/geodetic';
-import { ecefKmToScene } from './geo/sceneFrame';
+import { ecefKmToScene, KM_PER_SCENE_UNIT } from './geo/sceneFrame';
+import type { WhatIfContext } from './modes/whatif/whatif';
 import { startPropagation } from './orbit/propagationClient';
 import { gmstRadians } from './orbit/time';
 import { startOfPass } from './passes/passList';
@@ -189,6 +190,26 @@ function startInsetTracking(globe: Globe): void {
   update();
 }
 
+/**
+ * What the "What if?" mode needs from the tracker. That mode is loaded only
+ * when its tab is first opened, by which time some or all of this exists;
+ * each piece is filled in as it comes to exist.
+ */
+const whatIfSource: {
+  globe: Globe | null;
+  selected: WhatIfContext['selected'];
+  background: WhatIfContext['background'];
+  dimTracker: WhatIfContext['dimTracker'];
+} = {
+  globe: null,
+  selected: () => null,
+  background: () => null,
+  dimTracker: () => undefined,
+};
+
+/** How bright the tracked objects are drawn while a simulated cloud is on show. */
+const TRACKER_BRIGHTNESS_BEHIND_A_CLOUD = 0.35;
+
 function startTabs(): void {
   const whatIfPanel = requireElement('whatif-card', HTMLElement);
 
@@ -204,7 +225,17 @@ function startTabs(): void {
         whatIfPanel.textContent = 'Loading…';
         import('./modes/whatif/whatif')
           .then(({ mountWhatIf }) => {
-            mountWhatIf(whatIfPanel);
+            mountWhatIf(whatIfPanel, {
+              globe: whatIfSource.globe,
+              kmPerSceneUnit: KM_PER_SCENE_UNIT,
+              reducedMotion: () => reducedMotion.matches,
+              tabPanel: requireElement('panel-whatif', HTMLElement),
+              selected: () => whatIfSource.selected(),
+              background: () => whatIfSource.background(),
+              dimTracker: (dim) => {
+                whatIfSource.dimTracker(dim);
+              },
+            });
           })
           .catch((error: unknown) => {
             console.error('Failed to load the What if? mode:', error);
@@ -408,6 +439,34 @@ async function startCatalog(globe: Globe | null): Promise<void> {
     await layer.ready;
 
     const objects = buildObjectIndex(catalog, client.orbits);
+    // Satellites and rocket stages: the things a simulated fragment could hit.
+    // Without the descriptive fields every object is counted.
+    const intact = { perigeeKm: [] as number[], apogeeKm: [] as number[] };
+    for (let index = 0; index < objects.count; index += 1) {
+      const type = objects.metadata?.objectType[index];
+      if (type === undefined || type === 'PAY' || type === 'R/B') {
+        intact.perigeeKm.push(objects.orbits.perigeeKm[index] ?? 0);
+        intact.apogeeKm.push(objects.orbits.apogeeKm[index] ?? 0);
+      }
+    }
+    whatIfSource.background = () => intact;
+    whatIfSource.dimTracker = (dim) => {
+      layer.setBrightness(dim ? TRACKER_BRIGHTNESS_BEHIND_A_CLOUD : 1);
+    };
+    whatIfSource.selected = () => {
+      const index = explorer?.selected() ?? -1;
+      const record = objects.records[index];
+      const state = record === undefined ? null : layer.stateAt(index, clock.now());
+      if (record === undefined || state === null) {
+        return null;
+      }
+      return {
+        name: record.name,
+        kind: objects.metadata?.objectType[index] === 'R/B' ? 'rocketBody' : 'spacecraft',
+        position: state.position,
+        velocity: state.velocity,
+      };
+    };
     const created = createExplorer({
       globe,
       layer,
@@ -558,4 +617,6 @@ initTimeBar(
   clock,
   () => Date.now(),
 );
-void startCatalog(startGlobe());
+const globe = startGlobe();
+whatIfSource.globe = globe;
+void startCatalog(globe);

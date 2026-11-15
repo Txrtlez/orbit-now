@@ -62,7 +62,7 @@ export function describeSpan(years: number): string {
   if (minutes < 90) {
     return say(Math.round(minutes), 'minute');
   }
-  if (minutes < 36 * 60) {
+  if (minutes < 24 * 60) {
     return say(minutes / 60, 'hour');
   }
   if (years < 60 / 365.25) {

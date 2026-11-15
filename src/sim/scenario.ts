@@ -101,7 +101,7 @@ export const PRESETS: readonly Preset[] = [
     summary: '950 kg, 860 km up, set up like Fengyun-1C in 2007',
     basis: 'history',
     really:
-      'The real event left 3,532 catalogued pieces, about four times what this model makes, and 2,793 of them were still in orbit sixteen years later.',
+      'The real event left 3,532 catalogued pieces, about four times what this model makes, and 2,793 of them were still in orbit sixteen years later. NASA found that Fengyun-1C made more pieces, and more light ones, than its model gives.',
     build: () => ({
       event: 'antiSatellite',
       parents: [body('Weather satellite', 950, 'spacecraft', 860, 98.65, 35, false)],
@@ -113,7 +113,7 @@ export const PRESETS: readonly Preset[] = [
     summary: '560 kg and 900 kg, 790 km up, set up like Iridium 33 and Cosmos 2251 in 2009',
     basis: 'history',
     really:
-      'The real collision left 2,372 catalogued pieces (657 and 1,715), and 1,321 of them were still in orbit fourteen years later.',
+      'The real collision left 2,372 catalogued pieces (657 and 1,715), about twice what this model makes, and 1,321 of them were still in orbit fourteen years later.',
     build: () => ({
       event: 'collision',
       parents: [
@@ -128,7 +128,7 @@ export const PRESETS: readonly Preset[] = [
     summary: '1,750 kg, 480 km up, set up like Cosmos 1408 in 2021',
     basis: 'history',
     really:
-      'The real event left 1,785 catalogued pieces, and only 364 of them were still in orbit fourteen months later.',
+      'The real event left 1,785 catalogued pieces, about a third more than this model makes, and only 364 of them were still in orbit fourteen months later.',
     build: () => ({
       event: 'antiSatellite',
       parents: [body('Low satellite', 1750, 'spacecraft', 479.5, 82.56, 70.25, true)],

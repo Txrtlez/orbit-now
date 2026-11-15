@@ -369,6 +369,25 @@ export function runTrial(
   };
 }
 
+/** For a collision: how fast the two bodies meet, the energy, and whether both are destroyed. Otherwise null. */
+export function collisionOf(
+  request: Pick<SimulationRequest, 'event' | 'parents'>,
+): SimulationResult['collision'] {
+  const [first, second] = request.parents;
+  if (request.event !== 'collision' || first === undefined || second === undefined) {
+    return null;
+  }
+  const speedKmS = norm(relative(first.v, second.v));
+  return {
+    ...assessCollision(
+      Math.max(first.massKg, second.massKg),
+      Math.min(first.massKg, second.massKg),
+      speedKmS,
+    ),
+    speedKmS,
+  };
+}
+
 /**
  * Run the whole simulation: every repetition, with the first one's
  * fragments kept for drawing.
@@ -393,16 +412,7 @@ export function runSimulation(
       addResidence((low + high) / 2, (high - low) / (high + low), 1, backgroundByBand);
     }
   }
-  const [first, second] = request.parents;
-  const collision =
-    request.event === 'collision' && first !== undefined && second !== undefined
-      ? (() => {
-          const speedKmS = norm(relative(first.v, second.v));
-          const heavy = Math.max(first.massKg, second.massKg);
-          const light = Math.min(first.massKg, second.massKg);
-          return { ...assessCollision(heavy, light, speedKmS), speedKmS };
-        })()
-      : null;
+  const collision = collisionOf(request);
 
   const trials: TrialSummary[] = [];
   let display: SimFragment[] = [];

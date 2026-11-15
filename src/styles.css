@@ -1442,3 +1442,123 @@ body {
     padding: 14px 12px;
   }
 }
+
+/*
+ * "What if?" mode. The chart borrows the grid, axis, tick, cursor and table
+ * styles of the growth chart, so that the two charts read as one family.
+ */
+#whatif-card {
+  --growth-surface: #0d1320;
+  --whatif-series: #3987e5;
+}
+
+#whatif-card h2 {
+  margin: 0 0 6px;
+  font-size: 1.125rem;
+}
+
+.whatif-field {
+  display: block;
+  margin: 10px 0 0;
+}
+
+.whatif-label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.whatif-custom {
+  padding-left: 10px;
+  border-left: 2px solid var(--border);
+}
+
+.whatif-custom[hidden],
+.whatif-pair[hidden],
+.whatif-results[hidden] {
+  display: none;
+}
+
+#whatif-card .card-actions {
+  margin-top: 12px;
+}
+
+.whatif-results {
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.whatif-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin: 4px 0 0;
+}
+
+.whatif-moment-line {
+  margin: 0 0 8px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+#whatif-card .growth-table {
+  margin: 8px 0;
+}
+
+#whatif-card .growth-table th,
+#whatif-card .growth-table td {
+  white-space: normal;
+}
+
+.whatif-chart {
+  margin: 12px 0 0;
+}
+
+.whatif-line {
+  fill: none;
+  stroke: var(--whatif-series);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.whatif-band {
+  fill: var(--whatif-series);
+  fill-opacity: 0.28;
+  stroke: none;
+}
+
+/* The time the globe is showing. */
+.whatif-moment {
+  stroke: var(--text);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.whatif-dot {
+  fill: var(--whatif-series);
+  stroke: var(--growth-surface);
+  stroke-width: 2;
+}
+
+.whatif-readout {
+  min-height: 2.6em;
+  margin: 4px 0;
+}
+
+/* Fragments are drawn as small squares, the tracked objects as discs. */
+.whatif-key .swatch {
+  border-radius: 1px;
+}
+
+/* These labels are sentences; let them wrap rather than push the number off the card. */
+#whatif-card .fact dt {
+  flex: 1 1 auto;
+}
+
+#whatif-card .fact dd {
+  flex: none;
+  max-width: 60%;
+}

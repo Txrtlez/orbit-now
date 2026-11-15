@@ -112,7 +112,8 @@ test('switches modes and loads the What if? code only on demand', async ({ page 
   await whatIfTab.click();
   await expect(whatIfTab).toHaveAttribute('aria-selected', 'true');
   await expect(nowPanel).toBeHidden();
-  await expect(whatIfPanel).toContainText('has not been built yet');
+  await expect(whatIfPanel).toContainText('Illustrative model, not a prediction');
+  await expect(page.locator('html')).toHaveAttribute('data-whatif', 'idle');
   expect(whatIfRequests).toHaveLength(1);
 
   // Keyboard: Left arrow from the second tab returns to the first.
