@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en" data-renderer="starting">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#05070d" />
+    <meta
+      name="description"
+      content="Orbit Now: a live 3D view of the publicly tracked objects in Earth orbit. Under construction."
+    />
+    <title>Orbit Now</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <canvas
+      id="globe"
+      role="img"
+      aria-label="3D view of the Earth with a latitude and longitude grid"
+    ></canvas>
+
+    <header class="topbar">
+      <h1 class="wordmark">Orbit Now</h1>
+      <div class="tabs" role="tablist" aria-label="Mode">
+        <button
+          id="tab-now"
+          type="button"
+          role="tab"
+          aria-selected="true"
+          aria-controls="panel-now"
+        >
+          Now
+        </button>
+        <button
+          id="tab-whatif"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          aria-controls="panel-whatif"
+          tabindex="-1"
+        >
+          What if?
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <p id="render-status" class="render-status" role="status"></p>
+
+      <section id="panel-now" class="panel" role="tabpanel" aria-labelledby="tab-now" tabindex="0">
+        <h2>Under construction</h2>
+        <p>
+          This is the Phase 1 scaffold of Orbit Now. No orbital data is loaded yet, so no satellites
+          are shown.
+        </p>
+        <details class="details">
+          <summary>What am I looking at?</summary>
+          <p class="muted">
+            The globe is an untextured model of the Earth's shape (the WGS 84 ellipsoid) with grid
+            lines every 30° of latitude and longitude. The glow at its edge is decorative, not
+            sunlight.
+          </p>
+        </details>
+      </section>
+
+      <section
+        id="panel-whatif"
+        class="panel"
+        role="tabpanel"
+        aria-labelledby="tab-whatif"
+        tabindex="0"
+        hidden
+      ></section>
+    </main>
+
+    <footer class="footer">
+      <span id="build-info"></span>
+    </footer>
+
+    <noscript>
+      <p class="noscript">Orbit Now needs JavaScript to draw its 3D view.</p>
+    </noscript>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
