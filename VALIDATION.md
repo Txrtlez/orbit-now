@@ -1518,3 +1518,177 @@ for a similar reason in a new validation test that had no time limit of its own,
 | Two satellites collide: first cloud, all twelve repetitions   | 1.3 s, 13.2 s (the browser pane was in the background) |
 | Results                                                       | identical to the local build's, to every digit shown   |
 | Cloud three days after, in a screenshot                       | two rings crossing, in the two colours, tracker dimmed |
+
+## Phase 7
+
+### V7.1 Shareable links
+
+- **Date:** 2026-11-16
+- **What is checked:** `src/app/shareLink.ts`, which writes the view into the part of the address
+  after `#` and reads it back, and its use in `src/main.ts`.
+- **Reproduce:** `npm run test -- src/app/shareLink.test.ts`, and the "address" tests in
+  `e2e/launch.spec.ts`
+
+| Check                                                                                    | Result                                    |
+| ---------------------------------------------------------------------------------------- | ----------------------------------------- |
+| A view with every field set is written and read back unchanged                           | pass                                      |
+| The view the site opens with writes nothing                                              | pass                                      |
+| The same view gives the same link whatever order things were chosen in                   | pass                                      |
+| A link uses only letters, digits and `= & . / -`                                         | pass                                      |
+| Junk (unknown names, markup in a value, impossible years, a broken escape) is ignored    | pass, no error                            |
+| In the browser: select an object and a debris cloud, open the address in another page    | same object, same cloud, same count shown |
+| A time one hour ahead comes back within a second, paused                                 | pass                                      |
+| A "What if?" run opened twice from its link gives the same cloud and the same figures    | pass                                      |
+| A link naming an object the catalog lacks, and nonsense besides, opens the site as usual | pass, no page error                       |
+
+**A fault found by these tests.** The "Skip to search" link, added in the same phase, was an
+ordinary link to `#search-input`. Following it replaced the view in the address and, because the
+page reloads when the address is changed by hand, reloaded the page. It now moves the focus
+itself and leaves the address alone, and the keyboard test checks that.
+
+**Limits.** A shared time only works while it is within three days of the present. A run built
+on "the object selected in the tracker" is recomputed from where that object is when the link is
+opened. Whether the "Copy a link" button reaches the clipboard depends on the browser; where it
+cannot, the address is shown in a field to copy by hand, and that path was exercised in WebKit.
+
+### V7.2 The guided tour
+
+- **Date:** 2026-11-16
+- **What is checked:** `src/app/tour.ts` and its wiring.
+- **Reproduce:** the "on a first visit" tests in `e2e/launch.spec.ts`
+
+| Check                                                                                  | Result |
+| -------------------------------------------------------------------------------------- | ------ |
+| Starts by itself on a first visit, and not on the next                                 | pass   |
+| Does not start over a view that a link asked for                                       | pass   |
+| Can be stepped forward and back, paused, left with a button or Escape, and taken again | pass   |
+| Moves on by itself when motion is allowed (12 s a stop); waits when motion is reduced  | pass   |
+| The last stop opens "What if?" and runs the collision; finishing leaves it on show     | pass   |
+| Leaving part-way puts back the Now tab, all objects, no selection                      | pass   |
+
+Against the real catalog of 2026-11-15 the tour has five stops and reads: 19,572 objects; 11,188
+Starlink satellites, 57%; the Space Station at about 420 km, once round in 93 minutes; 1,988
+objects in the Fengyun-1C list. Each figure is counted by the page from its own data. Two
+sentences of the first draft said more than the sources do and were changed before release:
+"tracked by radar" (not all tracking is radar) and "still in orbit today" for the Fengyun-1C
+count (it is the size of CelesTrak's list, V5.4).
+
+**Not checked:** whether the tour does what the brief wants of it, which is to impress someone
+who has never seen the site. That needs people. Five stops of 12 seconds is 60 seconds by
+arithmetic; nobody has yet been timed reading them.
+
+### V7.3 Accessibility
+
+- **Date:** 2026-11-16
+- **Reproduce:** the keyboard, audit and touch-size tests in `e2e/launch.spec.ts`
+
+**Automated audit.** axe-core 4.14 (through `@axe-core/playwright`), rules tagged WCAG 2.0, 2.1
+and 2.2 at levels A and AA, run on six states of the page: the tracker; an object selected; the
+menu open; the About page; the tour; "What if?" with results.
+
+| Engine                      | Violations                                                                                     |
+| --------------------------- | ---------------------------------------------------------------------------------------------- |
+| Chromium, desktop and phone | none                                                                                           |
+| WebKit, desktop             | none                                                                                           |
+| WebKit, phone-sized         | one, fixed: the About page's table scrolls sideways there and could not be reached by keyboard |
+| Firefox                     | not obtained: the page crashed in the test machine's Firefox while the audit ran (V7.4)        |
+
+An automated audit finds only the faults a program can recognise (missing names, contrast of
+text, roles, focus order hazards). It does not show that the site is usable with a screen reader.
+
+**Keyboard.** Tested in Chromium and WebKit: the first Tab reaches "Skip to search"; the menu
+opens with Enter, closes with Escape and returns the focus; arrow keys turn the globe and plus
+and minus move in and out (new in this phase; before it the globe could not be turned without a
+pointer). Still missing: moving from object to object on the globe by keyboard. The search field
+is the keyboard's way to an object.
+
+**Touch targets.** With the overview and the menu open, every button, field, select and summary
+on screen was measured, on the desktop and phone-sized projects. None is smaller than 24 by 24
+CSS pixels (the WCAG 2.2 minimum), and after this phase none is shorter than 44. Four kinds had
+been: the filter buttons (38), the year fields (40), the speed select (36) and the time slider
+(28). A tick box is counted by its label.
+
+**Colour.** The object colours were checked for colour-blind separation in Phase 3 and the chart
+colours in Phase 5 (V5.5). The two fragment colours added in Phase 6 (`#ffd84d` and `#ff6fb1`)
+were checked on 2026-11-16 with the same validator: their difference is 22.7 under simulated
+deuteranopia and 20.8 under tritanopia, against a target of 8. The validator's lightness rule for
+chart fills marks both as too light; they are 3-pixel dots on a dark globe, made bright on
+purpose, and that rule was not applied to them. Fragments also differ from tracked objects in
+shape (squares, not discs).
+
+**Text size.** Body text is 16 px; the smallest text is the chart ticks at 12 px.
+
+**Motion.** The device's "reduce motion" setting and the site's own tick box each stop the
+globe's turning, camera flights and the playback of the chart, the tour and the cloud from
+starting by themselves. The tick box is remembered (tested).
+
+**Not done:** no test with a screen reader by anyone; no test by a person who relies on a
+keyboard or on magnification.
+
+### V7.4 Other browsers
+
+- **Date:** 2026-11-16
+- **What was run:** all the browser tests (65 per engine), on GitHub's Ubuntu test machines, in
+  Playwright's Firefox and WebKit builds. Workflow `cross-browser`, run 43786763057, commit 3a964f4.
+- **Reproduce:** `CROSS_BROWSER=1 npx playwright test`, or start the workflow by hand
+
+| Engine and size        | Passed | Failed | Passed on a second try | Skipped |
+| ---------------------- | ------ | ------ | ---------------------- | ------- |
+| WebKit, desktop        | 64     | 0      | 0                      | 1       |
+| WebKit, iPhone 14 size | 64     | 0      | 0                      | 1       |
+| Firefox, desktop       | 60     | 2      | 2                      | 1       |
+
+**Firefox, the two failures.**
+
+1. The accessibility audit: "Page crashed" while the audit's script ran, on both attempts. Every
+   other Firefox test, including the tour, "What if?" runs and the About page, ran in the same
+   browser without a crash. I do not know whether this is the site, the audit script, or
+   Firefox drawing WebGL in software on a machine with no graphics card. It is unresolved.
+2. "Says what to do when the device position is refused": the page stayed at "Asking your device
+   where it is…". In this test Chromium and WebKit refuse the request at once; Firefox under
+   automation leaves it unanswered, as a real Firefox does until the person answers its prompt.
+   I read this as the test's assumption and not a fault in the site, but it was not confirmed in
+   a real Firefox.
+
+**Firefox, the two that passed on a second try:** the tour test (a click timed out once) and
+"clears the selection" (the card was not yet visible once). Both are timing on a slow machine.
+
+**How Firefox had to be run.** Headless Firefox on these machines reports no WebGL at all, and
+the site then shows its "this browser cannot draw the 3D view" message and still works without
+the globe (in the first run, 43783315426, "What if?" completed its runs in that state). To test
+the globe, Firefox was run with a window on a virtual screen and asked to draw WebGL in software.
+
+**What this does and does not show.** Playwright's WebKit is the engine Safari is built on, not
+Safari, and it ran on Linux. An "iPhone 14" here is a screen size and a touch flag, not a phone.
+So: the site's code runs correctly in the WebKit and Firefox engines, with the exceptions above.
+It has **not** been opened in Safari on a Mac or an iPhone, in Firefox on a real computer, in
+Edge (which shares Chromium's engine), or on any real Android phone other than through
+Chromium's phone-sized mode. The brief asks for all of those. That check needs real devices.
+
+**Two faults in tests, not the site, found on the way** (runs 43783315426 and 43785555025): a
+clipboard permission that only Chromium knows was requested in every engine and spoiled the
+WebKit test's browser context; and three older tests assumed things this phase changed (an
+empty browser store; the overview reachable on a phone while an object is selected).
+
+### V7.5 Performance, and build checks at the end of Phase 7
+
+- **Date:** 2026-11-16
+- **Reproduce:** `npm run check`, then `PW_CHROMIUM_PATH=/usr/bin/google-chrome npm run e2e`
+
+| Check                                              | Result                                                    |
+| -------------------------------------------------- | --------------------------------------------------------- |
+| Formatting, lint, type-check                       | clean                                                     |
+| Unit and validation tests                          | 505 passed in 51 files                                    |
+| Browser tests, desktop and phone-sized Chromium    | 128 passed, 2 skipped (one touch-only, one keyboard-only) |
+| First download, gzip                               | 185.8 kB of a 300 kB budget (182.1 kB before Phase 7)     |
+| Fetched on demand, gzip: About page                | 4.7 kB                                                    |
+| Fetched on demand, gzip: tour                      | 1.9 kB                                                    |
+| Fetched on demand, gzip: "What if?" and its thread | 9.3 kB and 4.1 kB                                         |
+| Fetched on demand, gzip: growth chart              | 10.2 kB                                                   |
+
+**Frame rate: not measured.** The brief sets frame-rate targets and Phase 3 measured them on an
+earlier build. Since then selection, filters, time controls, passes, the debris layers and the
+fragment cloud have been added, and the rate has not been measured again on a real computer or
+phone. I cannot measure it: the build machine draws in software, and the browser pane on the
+owner's PC runs in the background, where browsers slow drawing down. To measure it, add
+`?stats` to the address on the device in question and read the figure at the top of the page.

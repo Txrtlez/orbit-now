@@ -644,6 +644,27 @@ and why.
 
 ## Known issues
 
+What launch did not prove (Phase 7), most important first:
+
+- **The site has not been opened in a real Safari, a real Firefox, Edge, or on a real phone by
+  the build process.** The same tests pass in the WebKit engine (64 of 64 at desktop and iPhone
+  sizes) and mostly in the Firefox engine (60 of 64, two more on a second try), on Linux test
+  machines (VALIDATION.md, V7.4). That is evidence about the code, not about those browsers on
+  real devices.
+- **In the Firefox engine the accessibility audit crashed the page,** twice, and the cause is not
+  known. Nothing else crashed there. Until someone opens the site in Firefox on a real computer,
+  treat Firefox as probably working.
+- **Frame rate has not been measured on the finished site.** The brief's targets are 60 fps on a
+  recent laptop and 30 or more on a mid-range phone. Add `?stats` to the address to read it.
+- **Nobody has used the site with a screen reader.** The automated audit finds no fault in
+  Chromium and WebKit, which is a narrower claim. Objects on the globe still cannot be stepped
+  through by keyboard; the search field is the way to one.
+- **The tour has not been tried on anyone.** Whether a minute is the right length, and whether
+  the fifth stop's two cards leave enough of the globe on a small phone, are open.
+- **A shared time stops working after three days,** and a shared run on "the selected object"
+  can give slightly different figures later (decision 30).
+- **No licence** (decision 34). This is the one launch item left to the owner.
+
 Limits of "What if?" mode (Phase 6), most important first. All of it is an illustrative model:
 
 - **The model makes too few pieces for real events,** by a factor of 4 for Fengyun-1C, 2 for
@@ -671,8 +692,8 @@ Limits of "What if?" mode (Phase 6), most important first. All of it is an illus
 - **Running a large event takes a while on a slow phone.** The made-up collision (about 2,500
   pieces, twelve repetitions) took 18 s on the build machine, with the first cloud on the globe
   after 3 s. Frame rate with a cloud on show has not been measured on real hardware.
-- **Nothing of a run is kept.** Leaving the page loses it, and there is no link to a run yet
-  (shareable links are Phase 7).
+- **Nothing of a run is kept but its link.** Leaving the page loses the results; the link
+  runs the same event again with the same random fragments (decision 30).
 
 Unproven parts of Phases 3 and 4, most important first:
 
@@ -756,8 +777,8 @@ Limits of what is built:
   in low orbit then drifts out of the middle of the view within a few minutes.
 - **The orbit line is the orbit, not the ground track** (decision 16).
 - **Objects can only be picked with a pointer or through the search field.** There is no way to
-  move from object to object with the keyboard, and the globe cannot be rotated from the keyboard.
-  Keyboard camera control is part of Phase 7.
+  move from object to object with the keyboard. (The globe itself can be turned and zoomed from
+  the keyboard since Phase 7.)
 - **Names appear on hover only with a mouse.** Touch has no hover; tap the object instead.
 - **Orbit regime boundaries are a convention,** and one of the three thresholds is from memory
   (VALIDATION.md, V3.7).
@@ -773,8 +794,6 @@ Carried over:
   started at 04:01 UTC, 44 minutes after its scheduled 03:17. To my knowledge GitHub also pauses
   scheduled workflows in repositories with no activity for 60 days; if the data stops updating
   after a long quiet period, check the Actions tab for a prompt to re-enable it.
-- **Tested in one browser engine.** Chromium only: headless with software rendering in CI and in
-  the build environment. Firefox and Safari are untested, and no screen reader has been used.
 - **Development-only security advisory.** `npm audit` reports a moderate-severity denial-of-service
   advisory (GHSA-g3hv-75wg-m249) in `minimatch`, a dependency of typescript-eslint. It affects the
   linter on a developer's machine and in CI only. It is not part of the code shipped to visitors.
