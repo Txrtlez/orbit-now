@@ -1755,7 +1755,7 @@ not a benchmark.
 | Deliverable                                                              | State                                                                          |
 | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
 | A deployed, mobile-friendly web app with Modes A and B                   | Deployed. Phone layout tested at phone sizes in two engines, not on a phone    |
-| The scheduled data pipeline                                              | Running three times a day since 2026-11-15 (V2.3; V4.4 still open)             |
+| The scheduled data pipeline                                              | Running three times a day since 2026-11-15 (V2.3, V4.4)                        |
 | Full test suite and VALIDATION.md                                        | 505 unit and validation tests, 65 browser tests on two sizes; this file        |
 | README: run, build, deploy, reproduce validations, decisions and reasons | Present; 34 decisions                                                          |
 | The in-app About page with sources and credits                           | Present (menu, "About the data and models")                                    |
