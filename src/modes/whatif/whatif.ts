@@ -1,3 +1,4 @@
+import type { SharedScenario } from '../../app/shareLink';
 import type { Globe } from '../../render/globe';
 import { SOLAR_SETTINGS } from '../../sim/atmosphere';
 import { CATASTROPHIC_THRESHOLD_J_PER_G, type ParentKind } from '../../sim/breakupModel';
@@ -53,6 +54,8 @@ export interface WhatIfContext {
    * The lowest and highest heights of every satellite and rocket stage in
    * the tracker's data, or null if the data has not arrived.
    */
+  /** Called when the event set up, or the run on show, changes. */
+  readonly onChange?: () => void;
   /** Draw the tracked objects faintly (true) or as usual (false). */
   readonly dimTracker: (dim: boolean) => void;
   readonly background: () => {
@@ -142,7 +145,19 @@ function countWithRange(values: readonly number[]): string {
     : `${whole.format(median)} (${whole.format(low)} to ${whole.format(high)})`;
 }
 
-export function mountWhatIf(panel: HTMLElement, context: WhatIfContext): void {
+/** What the rest of the page can do with this mode once it is loaded. */
+export interface WhatIfControl {
+  /** Set the form as a link or the tour describes it, and run it if the description names a run. */
+  apply(scenario: SharedScenario): void;
+  /** The event and run on show, or, if nothing has been run, what the form holds. */
+  current(): SharedScenario;
+  /** Start the time control playing, if there is a cloud. */
+  play(): void;
+  /** Take away the cloud and the results. */
+  clear(): void;
+}
+
+export function mountWhatIf(panel: HTMLElement, context: WhatIfContext): WhatIfControl {
   const root = document.documentElement;
   const layer: CloudLayer | null =
     context.globe === null ? null : createCloudLayer(context.kmPerSceneUnit);
@@ -326,6 +341,22 @@ export function mountWhatIf(panel: HTMLElement, context: WhatIfContext): void {
   let playing: number | null = null;
   let labels: readonly string[] = [];
   let hasBackground = false;
+  /** The event whose results are on show, as a link would describe it. */
+  let shown: SharedScenario | null = null;
+
+  const formState = (runNumber: number): SharedScenario => {
+    const isCustom = presetSelect.value === CUSTOM;
+    const collides = isCustom && eventSelect.value === 'collision';
+    return {
+      preset: presetSelect.value,
+      sun: sunSelect.value,
+      run: runNumber,
+      event: isCustom ? eventSelect.value : null,
+      massKg: isCustom ? readNumber(massInput, 1000) : null,
+      otherMassKg: collides ? readNumber(otherMassInput, 100) : null,
+      crossingDegrees: collides ? readNumber(angleInput, 90) : null,
+    };
+  };
 
   /** Show the cloud, and fade the tracked objects behind it, only while this tab is open and there is a cloud. */
   const showCloud = (): void => {
@@ -494,10 +525,12 @@ export function mountWhatIf(panel: HTMLElement, context: WhatIfContext): void {
     results.hidden = true;
     clearButton.hidden = true;
     status.textContent = '';
+    shown = null;
     delete root.dataset.whatifFragments;
     delete root.dataset.whatifTrials;
     delete root.dataset.whatifInOrbit;
     setPhase('idle');
+    context.onChange?.();
   };
 
   const buildScenario = (): Scenario | string => {
@@ -529,6 +562,8 @@ export function mountWhatIf(panel: HTMLElement, context: WhatIfContext): void {
     }
     clear();
     runCount += 1;
+    shown = formState(runCount);
+    context.onChange?.();
     const id = runId;
     const background = context.background();
     hasBackground = background !== null;
@@ -623,8 +658,12 @@ export function mountWhatIf(panel: HTMLElement, context: WhatIfContext): void {
     thread.postMessage(message);
   };
 
-  presetSelect.addEventListener('change', describeSelected);
-  eventSelect.addEventListener('change', describeSelected);
+  for (const control of [presetSelect, eventSelect, sunSelect]) {
+    control.addEventListener('change', () => {
+      describeSelected();
+      context.onChange?.();
+    });
+  }
   runButton.addEventListener('click', run);
   clearButton.addEventListener('click', clear);
   slider.addEventListener('input', () => {
@@ -657,4 +696,41 @@ export function mountWhatIf(panel: HTMLElement, context: WhatIfContext): void {
 
   describeSelected();
   setPhase('idle');
+
+  const choose = (select: HTMLSelectElement, value: string | null): void => {
+    if (value !== null && [...select.options].some((option) => option.value === value)) {
+      select.value = value;
+    }
+  };
+  return {
+    apply(scenario): void {
+      choose(presetSelect, scenario.preset);
+      choose(sunSelect, scenario.sun);
+      choose(eventSelect, scenario.event);
+      if (scenario.massKg !== null) {
+        massInput.value = String(scenario.massKg);
+      }
+      if (scenario.otherMassKg !== null) {
+        otherMassInput.value = String(scenario.otherMassKg);
+      }
+      if (scenario.crossingDegrees !== null) {
+        angleInput.value = String(scenario.crossingDegrees);
+      }
+      describeSelected();
+      if (scenario.run > 0) {
+        // The run's number decides its random fragments, so the same link shows the same cloud.
+        runCount = scenario.run - 1;
+        run();
+      } else {
+        context.onChange?.();
+      }
+    },
+    current: () => shown ?? formState(0),
+    play(): void {
+      if (cloud.length > 0 && playing === null) {
+        play();
+      }
+    },
+    clear,
+  };
 }

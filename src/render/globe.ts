@@ -402,6 +402,49 @@ export function createGlobe(options: GlobeOptions): Globe {
     }
   };
   canvas.addEventListener('touchend', onTouchEnd, { passive: false });
+  // The keyboard's way of doing what a drag and the wheel do: arrow keys
+  // turn the view, plus and minus move in and out. Shift makes bigger steps.
+  const keySpherical = new Spherical();
+  const onKeyDown = (event: KeyboardEvent): void => {
+    if (event.altKey || event.ctrlKey || event.metaKey) {
+      return;
+    }
+    const turn = ((event.shiftKey ? 20 : 6) * Math.PI) / 180;
+    keySpherical.setFromVector3(camera.position);
+    switch (event.key) {
+      case 'ArrowLeft':
+        keySpherical.theta -= turn;
+        break;
+      case 'ArrowRight':
+        keySpherical.theta += turn;
+        break;
+      case 'ArrowUp':
+        keySpherical.phi -= turn;
+        break;
+      case 'ArrowDown':
+        keySpherical.phi += turn;
+        break;
+      case '+':
+      case '=':
+        keySpherical.radius /= 1.2;
+        break;
+      case '-':
+      case '_':
+        keySpherical.radius *= 1.2;
+        break;
+      default:
+        return;
+    }
+    keySpherical.phi = Math.min(Math.PI - 0.05, Math.max(0.05, keySpherical.phi));
+    keySpherical.radius = Math.min(
+      MAX_CAMERA_DISTANCE,
+      Math.max(MIN_CAMERA_DISTANCE, keySpherical.radius),
+    );
+    camera.position.setFromSpherical(keySpherical);
+    onInteractionStart();
+    event.preventDefault();
+  };
+  canvas.addEventListener('keydown', onKeyDown);
   canvas.addEventListener('pointerdown', onPointerDown);
   canvas.addEventListener('pointermove', onPointerMove);
   canvas.addEventListener('pointerup', onPointerUp);
@@ -666,6 +709,7 @@ export function createGlobe(options: GlobeOptions): Globe {
       canvas.removeEventListener('webglcontextrestored', onContextRestored);
       canvas.removeEventListener('touchend', onTouchEnd);
       canvas.removeEventListener('pointerdown', onPointerDown);
+      canvas.removeEventListener('keydown', onKeyDown);
       canvas.removeEventListener('pointermove', onPointerMove);
       canvas.removeEventListener('pointerup', onPointerUp);
       canvas.removeEventListener('pointercancel', onPointerCancel);

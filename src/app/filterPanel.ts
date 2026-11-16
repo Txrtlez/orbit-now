@@ -37,6 +37,11 @@ export interface FilterPanelControl {
   showOnlyGroups(groupIds: readonly string[]): void;
   /** Clear every filter. */
   clear(): void;
+  /**
+   * Set every filter at once, as if the viewer had pressed the buttons. A
+   * choice the catalog offers no button for is left out.
+   */
+  setState(state: FilterState): void;
 }
 
 function element<K extends keyof HTMLElementTagNameMap>(
@@ -120,6 +125,8 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelContr
 
   // The family buttons by identifier, so that they can be pressed from outside.
   const groupButtons = new Map<string, HTMLButtonElement>();
+  /** Every toggle button, with the set it adds to and the value it stands for. */
+  const chips: { chosen: Set<unknown>; key: unknown; button: HTMLButtonElement }[] = [];
 
   const toggleSection = <T>(
     title: string,
@@ -149,6 +156,7 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelContr
         button.setAttribute('aria-pressed', String(pressed));
         update();
       });
+      chips.push({ chosen, key: entry.key, button });
       onButton?.(entry.key, button);
       row.append(button);
     }
@@ -316,6 +324,32 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelContr
     },
     clear(): void {
       resetControls();
+      update();
+    },
+    setState(state): void {
+      resetControls();
+      for (const { chosen, key, button } of chips) {
+        const wanted =
+          chosen === groups
+            ? state.groups.has(key as string)
+            : chosen === regimes
+              ? state.regimes.has(key as Regime)
+              : state.types.has(key as string);
+        if (wanted) {
+          chosen.add(key);
+          button.setAttribute('aria-pressed', 'true');
+        }
+      }
+      if (ownerSelect !== null && state.owner !== null) {
+        const offered = [...ownerSelect.options].some((option) => option.value === state.owner);
+        ownerSelect.value = offered ? state.owner : '';
+      }
+      if (yearFromInput !== null && state.yearFrom !== null) {
+        yearFromInput.value = String(state.yearFrom);
+      }
+      if (yearToInput !== null && state.yearTo !== null) {
+        yearToInput.value = String(state.yearTo);
+      }
       update();
     },
   };

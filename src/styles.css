@@ -1562,3 +1562,244 @@ body {
   flex: none;
   max-width: 60%;
 }
+
+/* --- Phase 7: menu, tour, About, and motion ---------------------------------- */
+
+/* The first thing a keyboard reaches: a way past the top bar. Off-screen until focused. */
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 30;
+  padding: 12px 16px;
+  border-radius: 10px;
+  color: #04121f;
+  background: var(--accent);
+  font-weight: 600;
+  transform: translateY(-200%);
+}
+
+.skip-link:focus {
+  transform: none;
+}
+
+/* The globe takes the keyboard too; show where the focus is without boxing the whole page. */
+#globe:focus-visible {
+  outline: 3px solid #ffd166;
+  outline-offset: -3px;
+}
+
+.more {
+  position: relative;
+  margin-left: auto;
+}
+
+.more-button {
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--text);
+  background: var(--surface);
+  backdrop-filter: blur(10px);
+}
+
+.more-list {
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  width: min(300px, calc(100vw - 2 * var(--gap)));
+  /* An opaque surface: the menu opens over the search field and the time bar. */
+  background: #0d1320;
+}
+
+.more-list[hidden] {
+  display: none;
+}
+
+.more-list .link-row {
+  width: 100%;
+}
+
+.more-check {
+  min-height: 44px;
+}
+
+#share-status:empty {
+  display: none;
+}
+
+#share-url {
+  margin: 4px 0 8px;
+}
+
+/* The tour's card: under the top bar, clear of the cards at the bottom. */
+.tour {
+  top: calc(84px + env(safe-area-inset-top));
+  left: 50%;
+  z-index: 15;
+  width: min(460px, calc(100vw - 16px));
+  transform: translateX(-50%);
+  background: #0d1320;
+}
+
+.tour[hidden] {
+  display: none;
+}
+
+.tour-progress {
+  height: 3px;
+  margin: -2px 0 10px;
+  border-radius: 2px;
+  background: rgb(169 180 199 / 22%);
+  overflow: hidden;
+}
+
+.tour-bar {
+  width: 0;
+  height: 100%;
+  background: var(--accent);
+}
+
+.tour-bar-running {
+  animation: tour-fill 12s linear forwards;
+}
+
+@keyframes tour-fill {
+  to {
+    width: 100%;
+  }
+}
+
+.tour-step {
+  margin: 0;
+}
+
+.tour-title {
+  margin: 2px 0 6px;
+  font-size: 1.1875rem;
+}
+
+.tour-text {
+  margin: 0 0 12px;
+}
+
+.tour-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tour-actions .text-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+#tour-end {
+  margin-left: auto;
+}
+
+/* While the tour runs, the tracker's own cards step aside so the globe can be seen. */
+html[data-tour] #panel-now .card,
+html[data-tour] #top-stack {
+  display: none;
+}
+
+.about {
+  max-width: 68ch;
+}
+
+.about-lead {
+  margin-top: 0;
+}
+
+.about-section h3 {
+  margin: 22px 0 6px;
+  font-size: 1.0625rem;
+}
+
+.about-section h3 .tag {
+  vertical-align: 2px;
+}
+
+.about-list {
+  margin: 6px 0;
+  padding-left: 1.2em;
+}
+
+.about-list li {
+  margin: 6px 0;
+}
+
+.about a {
+  color: var(--accent);
+}
+
+.about-table th,
+.about-table td {
+  white-space: normal;
+}
+
+/* The viewer's own "Reduce motion" choice does what the device's setting would. */
+html[data-reduce-motion] *,
+html[data-reduce-motion] *::before,
+html[data-reduce-motion] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-bar-running {
+    animation: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .tour {
+    top: calc(72px + env(safe-area-inset-top));
+  }
+
+  .tour-title {
+    font-size: 1.0625rem;
+  }
+
+  .tour-text {
+    font-size: 0.9375rem;
+  }
+}
+
+/* Touch targets: nothing that is pressed is shorter than 44 CSS pixels. */
+.chip,
+#time-speed,
+.year-range input {
+  min-height: 44px;
+}
+
+#time-slider {
+  height: 44px;
+}
+
+/* The top bar's menu opens over whatever is below it. */
+.topbar {
+  z-index: 10;
+}
+
+@media (max-width: 720px) {
+  /* On a phone the menu spans the screen under the top bar. */
+  .more-list {
+    position: fixed;
+    top: calc(72px + env(safe-area-inset-top));
+    left: calc(8px + env(safe-area-inset-left));
+    right: calc(8px + env(safe-area-inset-right));
+    width: auto;
+  }
+
+  /* During the tour's last stop, leave room between the two cards for the globe. */
+  html[data-tour] #whatif-card {
+    max-height: 24dvh;
+  }
+}

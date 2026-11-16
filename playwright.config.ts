@@ -13,6 +13,17 @@ const launchOptions = {
   ...(chromiumPath !== undefined && chromiumPath !== '' ? { executablePath: chromiumPath } : {}),
 };
 
+/** Browser storage as it is after the tour has been seen once. */
+export const RETURNING_VISITOR = {
+  cookies: [],
+  origins: [
+    {
+      origin: 'http://localhost:4173',
+      localStorage: [{ name: 'orbit-now:tour', value: 'seen' }],
+    },
+  ],
+};
+
 export default defineConfig({
   testDir: 'e2e',
   fullyParallel: true,
@@ -22,6 +33,9 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:4173',
     trace: 'on-first-retry',
+    // A first visit starts the guided tour. Every test but the tour's own
+    // begins as a returning visitor, so that the tour is not in its way.
+    storageState: RETURNING_VISITOR,
   },
   projects: [
     {

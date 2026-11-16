@@ -13,14 +13,48 @@
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
   </head>
   <body>
+    <a class="skip-link" href="#search-input">Skip to search</a>
     <canvas
       id="globe"
       role="img"
-      aria-label="3D view of the Earth with the tracked objects orbiting it"
+      tabindex="0"
+      aria-label="3D view of the Earth with the tracked objects orbiting it. Arrow keys turn it; plus and minus move in and out."
     ></canvas>
 
     <header id="topbar" class="topbar">
       <h1 class="wordmark">Orbit Now</h1>
+      <div class="more">
+        <button
+          id="more-button"
+          type="button"
+          class="icon-button more-button"
+          aria-expanded="false"
+          aria-controls="more-list"
+          aria-label="Menu: tour, share, settings, about"
+        >
+          <span aria-hidden="true">&#8943;</span>
+        </button>
+        <div id="more-list" class="card more-list" hidden>
+          <button id="tour-start" type="button" class="link-row">Take the one-minute tour</button>
+          <button id="share-copy" type="button" class="link-row">Copy a link to this view</button>
+          <p id="share-status" class="small muted" role="status"></p>
+          <input
+            id="share-url"
+            class="owner-select"
+            type="text"
+            readonly
+            hidden
+            aria-label="Link to this view"
+          />
+          <label class="check more-check">
+            <input id="motion-reduce" type="checkbox" />
+            <span>Reduce motion</span>
+          </label>
+          <button id="about-open" type="button" class="link-row" aria-haspopup="dialog">
+            About the data and models
+          </button>
+        </div>
+      </div>
       <div class="tabs" role="tablist" aria-label="Mode">
         <button
           id="tab-now"
@@ -48,6 +82,7 @@
       <p id="render-status" class="render-status" role="status"></p>
       <p id="stats" class="stats" hidden></p>
       <div id="hover-label" class="hover-label" hidden></div>
+      <section id="tour" class="card tour" aria-labelledby="tour-title" hidden></section>
 
       <div id="panel-now" class="mode-layer" role="tabpanel" aria-labelledby="tab-now">
         <div id="top-stack" class="top-stack">
@@ -193,6 +228,19 @@
         </button>
       </header>
       <div id="growth-body" class="growth"></div>
+    </dialog>
+
+    <dialog id="about-dialog" class="dialog" aria-labelledby="about-title">
+      <header class="card-header">
+        <div class="card-titles">
+          <h2 id="about-title">About the data and models</h2>
+          <p class="headline">What is real, what is modelled, and how far to trust each</p>
+        </div>
+        <button id="about-close" type="button" class="icon-button close" aria-label="Close">
+          &times;
+        </button>
+      </header>
+      <div id="about-body" class="about"></div>
     </dialog>
 
     <footer class="footer">
