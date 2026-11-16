@@ -6,7 +6,7 @@ debris-cascade ("Kessler syndrome") simulator.
 **Live site:** <https://txrtlez.github.io/orbit-now/>
 
 **Status: all seven phases are done and the site is launched.** The site shows the Earth with its real day and night sides and
-about 19,500 objects moving in real time. Click or tap an object to see what it is, where it is
+about 19,700 objects moving in real time. Click or tap an object to see what it is, where it is
 and the path of its orbit; search by name or number; filter by constellation, orbit, launch year,
 kind and owner. The clock can be paused, run at up to 600 times normal speed, or moved three days
 either way. Give a place (your device's position, a city, or coordinates) and the site lists the
@@ -24,15 +24,15 @@ The data on the globe covers
 active satellites, three debris clouds and CelesTrak's list of the brightest objects, not every
 tracked object (see "Data source"). What is still unproven is listed first under "Known issues".
 
-| Phase | Scope                                                                     | State                                                                                                                              |
-| ----- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| 1     | Repository structure, tooling, CI, deploy pipeline, empty app             | Done                                                                                                                               |
-| 2     | Scheduled OMM data pipeline; SGP4 validated against published vectors     | Done, with one documented exception in the SGP4 gate                                                                               |
-| 3     | Earth rendering, all objects moving, picking, info panel, filters, search | Done. Frame rate measured by the owner at 240 fps (PC) and 60 fps (phone), before the interaction features were added              |
-| 4     | Overhead passes with visibility; time controls                            | Done. ISS passes agree with Heavens-Above at four places (launch gate 2). The bright-objects group awaits its first download       |
-| 5     | Historical debris layers; growth-of-orbit chart                           | Done. Nothing of the 2021 Cosmos 1408 cloud is in the data, and the site says so. The chart's numbers were read from a NASA figure |
-| 6     | "What if?" mode: breakup model, propagation, reentry, cascade statistics  | Done. All four launch gates have been run (VALIDATION.md, V6.2). Limits of the model: "Known issues" and V6.3 to V6.5              |
-| 7     | Guided tour, shareable links, About page, accessibility, launch           | Done and deployed. What was and was not tested across browsers: VALIDATION.md, V7.4                                                |
+| Phase | Scope                                                                     | State                                                                                                                                        |
+| ----- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | Repository structure, tooling, CI, deploy pipeline, empty app             | Done                                                                                                                                         |
+| 2     | Scheduled OMM data pipeline; SGP4 validated against published vectors     | Done, with one documented exception in the SGP4 gate                                                                                         |
+| 3     | Earth rendering, all objects moving, picking, info panel, filters, search | Done. Frame rate measured by the owner at 240 fps (PC) and 60 fps (phone), before the interaction features were added                        |
+| 4     | Overhead passes with visibility; time controls                            | Done. ISS passes agree with Heavens-Above at four places (launch gate 2). The bright-objects group was first downloaded on 2026-11-16 (V4.4) |
+| 5     | Historical debris layers; growth-of-orbit chart                           | Done. Nothing of the 2021 Cosmos 1408 cloud is in the data, and the site says so. The chart's numbers were read from a NASA figure           |
+| 6     | "What if?" mode: breakup model, propagation, reentry, cascade statistics  | Done. All four launch gates have been run (VALIDATION.md, V6.2). Limits of the model: "Known issues" and V6.3 to V6.5                        |
+| 7     | Guided tour, shareable links, About page, accessibility, launch           | Done and deployed. What was and was not tested across browsers: VALIDATION.md, V7.4                                                          |
 
 ## Run it
 
@@ -576,8 +576,9 @@ groups are used for the bulk of it:
 | **Total**            | **19,559**            |
 
 A fifth group, `visual` (CelesTrak's "100 (or so) Brightest"), was added on 2026-11-15 for the
-pass predictions. It had not yet been downloaded when this was written, so its size, and how many
-of its objects the other groups do not already include, are not known (VALIDATION.md, V4.4).
+pass predictions and first downloaded on 2026-11-16: 156 objects, of which 29 were already in the
+`active` group and 127 were new: 90 spent rocket stages and 37 payloads that are not on the
+active list. That brought the catalog to 19,700 objects (VALIDATION.md, V4.4).
 
 **What each object is.** Kind (payload, rocket body, debris), operational status, owner and launch
 date come from CelesTrak's satellite catalog, SATCAT, requested once a day for the same
@@ -697,10 +698,10 @@ Limits of "What if?" mode (Phase 6), most important first. All of it is an illus
 
 Unproven parts of Phases 3 and 4, most important first:
 
-- **The bright-objects group has not been downloaded yet.** It was added to the pipeline in Phase
-  4; the first scheduled run after the merge is its first test (VALIDATION.md, V4.4). Until then
-  the passes panel offers the two space stations only. If CelesTrak refuses that one request, the
-  other groups will already have been refreshed in the same run, and the run will be marked failed.
+- **The list of other bright satellites is long and unranked.** With CelesTrak's 154 objects it
+  comes to about 200 visible passes a night for one place (VALIDATION.md, V4.4), shown twenty at a
+  time in order of time. There is no filter by how high a pass climbs, and nothing says how bright
+  each will look.
 - **No predicted pass has been checked against the sky.** The predictions agree with Heavens-Above
   to a few seconds, but both use the same model and nearly the same elements. Watching one pass of
   the ISS with a clock in hand would be the first real-world check of this site.

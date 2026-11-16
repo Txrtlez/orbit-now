@@ -773,14 +773,60 @@ general knowledge.
 - **What was checked:** the name of the group. CelesTrak's current-data page
   (https://celestrak.org/NORAD/elements/) lists "100 (or so) Brightest" with `GROUP=visual`; read
   on 2026-11-15 through an automated page reader, which reported the link text and the group value.
-- **Status of the download itself: not yet run.** The group was added to the pipeline in this
-  phase and the build environment may not contact CelesTrak. Until the first scheduled run after
-  the merge, the published catalog has no such group and the site offers passes for the two space
-  stations only. The first run is the test of: the request being accepted, how many objects the
-  group holds, and how many of them were not already in the catalog.
+- **Status of the download itself: done, see "First real run" below.** When this entry was first
+  written the group had been added to the pipeline but not yet downloaded, and the build
+  environment may not contact CelesTrak.
 
-The list of other satellites in the panel was tried with a local stand-in: the real catalog with
-149 low-orbit objects marked as if they were in the group. That file was never published.
+The list of other satellites in the panel was first tried with a local stand-in: the real catalog
+with 149 low-orbit objects marked as if they were in the group. That file was never published.
+
+**First real run.**
+
+- **Date:** 2026-11-16
+- **Run:** GitHub Actions run 43804967563 of "Update orbital data", scheduled for 03:17 UTC,
+  started 04:34:56 UTC (78 minutes late; no earlier run had the group in its list), finished
+  04:46:56 UTC, every job successful. Figures below are from `status.json` and `catalog.json.gz`
+  on the `data` branch (commit `b0d737e`), read through git.
+
+| Request                           | Outcome                         | Rows | Accepted | Rejected |
+| --------------------------------- | ------------------------------- | ---- | -------- | -------- |
+| `visual` (orbital elements)       | accepted at 04:35:34 UTC ("ok") | 156  | 156      | 0        |
+| `satcat-visual` (catalog records) | accepted at 04:35:37 UTC ("ok") | 158  | 158      | 0        |
+
+The four older groups were refreshed first in the same run, all "ok". Their catalog records were
+not requested, correctly: the last request was 16.7 hours earlier and the rule is 22.
+
+| Check on the published catalog                                  | Result                                    |
+| --------------------------------------------------------------- | ----------------------------------------- |
+| Objects in the catalog (was 19,573 at 11:52 UTC on 15 November) | 19,700                                    |
+| Objects in the group                                            | 156                                       |
+| Of those, already in the catalog through the `active` group     | 29                                        |
+| Of those, new to the catalog                                    | 127                                       |
+| Kind, all 156 (every one has a catalog record)                  | 66 payloads, 90 rocket bodies             |
+| Kind, the 127 new ones                                          | 37 payloads, 90 rocket bodies             |
+| Status of the 127 new ones                                      | none marked as working: 117 blank, 10 "-" |
+| Mean motion, lowest and highest                                 | 11.30 and 16.12 rev/day: all in low orbit |
+| Station modules in the group                                    | 2: ISS (ZARYA) and CSS (TIANHE)           |
+| Satellites the panel offers besides the two stations            | 154 (156 less those 2)                    |
+
+So the group does what decision 23 expected: it adds spent rocket stages and payloads that are not
+on the active list (10 marked as not working, 27 with no status given), and the two stations are
+not listed twice. The catalog records number two more than the element sets; which two objects, and
+why they have no elements in the group, was not looked into (they add nothing to the catalog, which
+is built from element sets).
+
+**The deployed site**, opened at about 04:48 UTC in Chromium on the owner's PC: build `049e23b`
+with 19,700 objects, and the panel showed the option "Include 154 other bright satellites". For
+the place already stored in that browser (not recorded here), ticking it raised the number of
+visible passes in five days from 10 to 1,032, with names such as SL-16 R/B, H-2A R/B and
+INTERCOSMOS 25. The calculation took about 4 s; the browser pane may have been in the background,
+so that figure is an upper bound and not a measurement. The option was left as it was found, and
+the stored place was not changed.
+
+**A consequence worth knowing.** A thousand visible passes in five days is about 200 a night. The
+list shows twenty at a time in order of time, and nothing ranks them, because the data has nothing
+to rank them by except how high they climb. A filter by maximum elevation would be the natural
+next step; it has not been built.
 
 ### V4.5 Build and browser checks at the end of Phase 4
 
@@ -1720,7 +1766,7 @@ not a benchmark.
 | Deliverable                                                              | State                                                                          |
 | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
 | A deployed, mobile-friendly web app with Modes A and B                   | Deployed. Phone layout tested at phone sizes in two engines, not on a phone    |
-| The scheduled data pipeline                                              | Running three times a day since 2026-11-15 (V2.3; V4.4 still open)             |
+| The scheduled data pipeline                                              | Running three times a day since 2026-11-15 (V2.3; V4.4 closed on 2026-11-16)   |
 | Full test suite and VALIDATION.md                                        | 505 unit and validation tests, 65 browser tests on two sizes; this file        |
 | README: run, build, deploy, reproduce validations, decisions and reasons | Present; 34 decisions                                                          |
 | The in-app About page with sources and credits                           | Present (menu, "About the data and models")                                    |

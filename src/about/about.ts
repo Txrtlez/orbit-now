@@ -144,7 +144,7 @@ export function mountAbout(container: HTMLElement, facts: AboutFacts): void {
         ],
         'Update schedule: a scheduled job asks CelesTrak three times a day, at about 03:17, 11:17 and 19:17 UTC, and the site loads whatever it last published. Scheduled jobs can start late. ' +
           count,
-        'What is missing: this is not every tracked object. Dead satellites, spent rocket stages and most debris are not in the lists used. NASA counted about 33,500 catalogued objects in orbit in May 2026; this site draws roughly 19,500. Debris from Cosmos 1408 is not drawn at all, because CelesTrak has no list for it.',
+        'What is missing: this is not every tracked object. Most dead satellites, spent rocket stages and debris are not in the lists used; the list of brightest objects brings in about 130 of them. NASA counted about 33,500 catalogued objects in orbit in May 2026; this site draws roughly 19,700. Debris from Cosmos 1408 is not drawn at all, because CelesTrak has no list for it.',
         'What each object is (kind, owner, launch date, status): CelesTrak’s satellite catalog, asked for once a day. Constellation names are worked out from the object’s name, which is a guess.',
         'Growth of orbit since 1957: NASA Orbital Debris Program Office, Orbital Debris Quarterly News, volume 30, issues 1 and 2 (July 2026), page 9. No table is published, so the numbers were read from the lines of the figure and are good to roughly ten objects.',
         'The three break-ups: NASA’s History of On-orbit Satellite Fragmentations, 16th edition, and Orbital Debris Quarterly News issues 11-2, 12-1, 13-2, 27-1 and 28-2.',
