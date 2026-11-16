@@ -48,7 +48,8 @@ jobs:
         run: npx playwright install --with-deps ${{ matrix.install }}
 
       - name: Browser tests
-        run: npx playwright test --project=${{ matrix.project }}
+        # A virtual screen, for the browser that is run with a window (Firefox).
+        run: xvfb-run --auto-servernum npx playwright test --project=${{ matrix.project }}
         env:
           CROSS_BROWSER: '1'
 

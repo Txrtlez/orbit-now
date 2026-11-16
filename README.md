@@ -5,7 +5,7 @@ debris-cascade ("Kessler syndrome") simulator.
 
 **Live site:** <https://txrtlez.github.io/orbit-now/>
 
-**Status: Phases 1 to 6 are done.** The site shows the Earth with its real day and night sides and
+**Status: all seven phases are done and the site is launched.** The site shows the Earth with its real day and night sides and
 about 19,500 objects moving in real time. Click or tap an object to see what it is, where it is
 and the path of its orbit; search by name or number; filter by constellation, orbit, launch year,
 kind and owner. The clock can be paused, run at up to 600 times normal speed, or moved three days
@@ -17,7 +17,10 @@ through NASA's count of catalogued objects month by month since 1957. The "What 
 break-up (three set up like real ones, two made up, or the object you have selected), makes the
 fragments with NASA's standard breakup model, follows them for a century, and shows the cloud on
 the globe with a table and chart of what is left; it is an illustrative model, not a prediction,
-and says so. The data on the globe covers
+and says so. A first visit is taken on a one-minute tour; the address after `#` always describes
+the view, so copying it shares the view; and the menu (⋯) holds the tour, the link, a "Reduce
+motion" setting and the About page, which states every source, model, simplification and limit.
+The data on the globe covers
 active satellites, three debris clouds and CelesTrak's list of the brightest objects, not every
 tracked object (see "Data source"). What is still unproven is listed first under "Known issues".
 
@@ -29,7 +32,7 @@ tracked object (see "Data source"). What is still unproven is listed first under
 | 4     | Overhead passes with visibility; time controls                            | Done. ISS passes agree with Heavens-Above at four places (launch gate 2). The bright-objects group awaits its first download       |
 | 5     | Historical debris layers; growth-of-orbit chart                           | Done. Nothing of the 2021 Cosmos 1408 cloud is in the data, and the site says so. The chart's numbers were read from a NASA figure |
 | 6     | "What if?" mode: breakup model, propagation, reentry, cascade statistics  | Done. All four launch gates have been run (VALIDATION.md, V6.2). Limits of the model: "Known issues" and V6.3 to V6.5              |
-| 7     | Guided tour, shareable links, About page, accessibility, launch           | Not started                                                                                                                        |
+| 7     | Guided tour, shareable links, About page, accessibility, launch           | Done and deployed. What was and was not tested across browsers: VALIDATION.md, V7.4                                                |
 
 ## Run it
 
@@ -46,6 +49,16 @@ npm run dev       # development server with hot reload, http://localhost:5173
 npm run check     # formatting, lint, type-check, unit tests, production build, size budget
 npm run e2e       # builds, serves the production build, runs the browser smoke tests
 ```
+
+To run the same browser tests in Firefox and WebKit (the engine of Safari) instead, install those
+browsers (`npx playwright install firefox webkit`) and set `CROSS_BROWSER=1`:
+
+```bash
+CROSS_BROWSER=1 npx playwright test
+```
+
+On GitHub that is the `cross-browser` workflow, which runs on every branch push and can be started
+by hand. It is separate from CI and cannot stop a deployment (decision 33).
 
 `npm run e2e` needs a Chromium browser. Either let Playwright download one
 (`npx playwright install chromium`), or point it at one you already have:
@@ -107,7 +120,8 @@ src/
   styles.css               All styling
   app/                     Interface code that is not 3D: selection, the object card, search,
                            filters, the debris events, the clock and time bar, the passes
-                           panel, number formatting, tabs
+                           panel, number formatting, tabs, shareable links, the guided tour
+  about/                   The About page's text, loaded on demand
   geo/                     Earth geometry: WGS 84 constants, coordinate conversions both ways,
                            where something appears in an observer's sky
   passes/                  Pass prediction and visibility, which satellites to predict for,
@@ -484,6 +498,68 @@ of their brightness while a cloud is on show, and the cloud disappears when the 
 time under the cloud is a separate control from the tracker's clock, stretched evenly in ratio
 from one minute to a hundred years, because a cloud changes as much between a day and a month as
 between ten years and a hundred. The tracked objects behind it stay at the tracker's own time.
+
+### 30. The view is kept in the address, after the `#`
+
+Shareable links needed somewhere to put the view. The path is not available (decision 2: plain
+files in a sub-folder, no routing), and a query string would be sent to the server with every
+request. The fragment is never sent, needs no server support, and can be rewritten without
+reloading. So the address always describes the view: selected object, filters, the time if it is
+not the present, the mode, and in "What if?" the event, the Sun setting and which run is on show.
+Because a run's number decides its random fragments, a shared run shows the same cloud and the
+same figures. The format is a short list of `name=value` pairs (`src/app/shareLink.ts`); anything
+missing means "as the site opens" and anything not understood is ignored, so an old or mangled
+link opens the site and never an error. Two limits follow from other decisions: a shared time
+only works while it is within three days of the present (the clock's range), and then the view is
+paused at that instant; and a run built on "the object selected in the tracker" is recomputed
+from where that object is when the link is opened, so its numbers can differ slightly.
+
+### 31. The tour drives the real controls, and starts by itself once
+
+The tour's five stops press the same filters, selection, tabs and "What if?" form that a viewer
+would, and every number in its text is counted from the data on the page, so it cannot show
+something the site would not. A stop whose subject is missing from the data is left out. It
+starts by itself on a first visit, as the brief asks, but not when the visitor arrived by a link
+to a particular view, and not again once seen (one flag in the browser's storage; where storage
+is off, it does not start by itself at all, so as not to start on every visit). It moves on
+every 12 seconds, can be paused, stepped both ways, left with one button or Escape, and taken
+again from the menu. With reduced motion it waits to be moved on. While it runs the tracker's
+own cards step aside.
+
+### 32. Reduced motion: the device's setting, or the site's own
+
+Everything that moves by itself (the globe's slow turn, camera flights, the growth chart's and
+the tour's playback) already stopped when the device asks for reduced motion. The brief asks for
+an option, so the menu has a "Reduce motion" tick box that does the same and is remembered. The
+two are combined with "or": the site's box can reduce motion further than the device asks but
+never turns back on what the device turned off.
+
+### 33. Other browsers are tested in a separate run that cannot block a deployment
+
+CI and deployment use Chromium only, as before. Firefox and WebKit run the same tests in their
+own workflow. The reason for keeping them apart is that those results depend on what the test
+machine can do, not only on the site: a failure there should be read and recorded, not allowed
+to stop a fix from going out. What those runs found is in VALIDATION.md, V7.4.
+
+### 34. What was decided about the questions left open
+
+The owner asked for these to be settled by judgement. Each can be reversed.
+
+- **The full public catalogue was not added.** It would give "What if?" the dead satellites and
+  spent stages its hit count lacks. But CelesTrak serves no single list of them and asks users
+  not to download every group; the alternative, Space-Track, needs an account and has terms that
+  have not been read. A change to what the site downloads every day, made on the last day and
+  untestable from the build machine, was the wrong trade for a number already labelled as
+  illustrative. The About page says what is missing instead.
+- **No query for Cosmos 1408 debris was added.** By NASA's count 364 of its 1,785 pieces were
+  still in orbit in January 2023, and nearly all of it was expected down within about five years
+  of 2021 (VALIDATION.md, V5.3). The site would be asking CelesTrak one more question a day to
+  draw, at best, a few dots.
+- **The Heavens-Above tables stay in the repository.** They are 186 rows of predicted times, kept
+  with their source named and used only to test this site's predictions. Their terms of use
+  have still not been read; removing them is the two deletions described under "Known issues".
+- **No licence was chosen.** That is the one decision left to the owner, because a licence is
+  a legal grant made in the owner's name and cannot be taken back from copies already made.
 
 ## Data source
 

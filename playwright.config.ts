@@ -54,7 +54,10 @@ export default defineConfig({
           name: 'firefox',
           use: {
             ...devices['Desktop Firefox'],
-            // A test machine has no graphics card; ask Firefox to draw WebGL in software.
+            // A test machine has no graphics card. Headless Firefox then has no
+            // WebGL at all, so it is run with a window on a virtual screen
+            // (xvfb-run in the workflow) and asked to draw WebGL in software.
+            headless: false,
             launchOptions: {
               firefoxUserPrefs: { 'webgl.force-enabled': true, 'webgl.disabled': false },
             },

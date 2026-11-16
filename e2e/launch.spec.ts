@@ -127,6 +127,7 @@ test.describe('on a first visit', () => {
 test('keeps the view in the address, and the address brings the view back', async ({
   page,
   context,
+  browserName,
 }) => {
   const errors = await load(page);
   const html = page.locator('html');
@@ -147,9 +148,11 @@ test('keeps the view in the address, and the address brings the view back', asyn
   const shown = await html.getAttribute('data-shown');
 
   // The menu copies the same address.
-  // Chromium needs to be told the page may use the clipboard; the other
-  // engines do not know these names and refuse them, which is fine here.
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']).catch(() => undefined);
+  // Chromium has to be told the page may use the clipboard. The other
+  // engines do not know these names, and asking spoils the browser context.
+  if (browserName === 'chromium') {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  }
   await openMenu(page);
   await page.getByRole('button', { name: 'Copy a link to this view' }).click();
   await expect(page.locator('#share-status')).toHaveText(/Link copied\.|Copy the address below\./);
