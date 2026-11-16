@@ -773,14 +773,49 @@ general knowledge.
 - **What was checked:** the name of the group. CelesTrak's current-data page
   (https://celestrak.org/NORAD/elements/) lists "100 (or so) Brightest" with `GROUP=visual`; read
   on 2026-11-15 through an automated page reader, which reported the link text and the group value.
-- **Status of the download itself: not yet run.** The group was added to the pipeline in this
-  phase and the build environment may not contact CelesTrak. Until the first scheduled run after
-  the merge, the published catalog has no such group and the site offers passes for the two space
-  stations only. The first run is the test of: the request being accepted, how many objects the
-  group holds, and how many of them were not already in the catalog.
+- **Status of the download itself: done, on 2026-11-16.** When this entry was first written the
+  group had been added to the pipeline but never downloaded, because the build environment may
+  not contact CelesTrak. The first scheduled run after the merge was the test.
 
-The list of other satellites in the panel was tried with a local stand-in: the real catalog with
-149 low-orbit objects marked as if they were in the group. That file was never published.
+**The first download.** Workflow "Update orbital data", run 43804967563, the run scheduled for
+03:17 UTC on 2026-11-16. GitHub started it at 04:34:56 UTC, 78 minutes late. It succeeded: the
+download finished at 04:35:44 and the rebuilt site was published at 04:46:55.
+
+| What                                                  | Result                                                        |
+| ----------------------------------------------------- | ------------------------------------------------------------- |
+| `visual`: rows received, accepted, rejected           | 156, 156, 0                                                   |
+| `satcat-visual` (what each object is): rows, accepted | 158, 158                                                      |
+| Objects in the group                                  | 156                                                           |
+| Already in the catalog through another group          | 29 (working satellites, both space stations among them)       |
+| New to the catalog                                    | 127: 90 rocket bodies and 37 payloads, none listed as working |
+| Catalog before and after                              | 19,572 and 19,700 (the 127, and one more Fengyun-1C piece)    |
+| The other four groups in the same run                 | all accepted in full, nothing rejected                        |
+
+The numbers are from `status.json` and `catalog.json.gz` on the `data` branch as published by
+that run. CelesTrak was not contacted from the build environment.
+
+**On the deployed site** (2026-11-16, built-in browser on the owner's PC, the build republished
+by that run, 19,700 objects): with a place given as typed coordinates (51.5° N, 0.1° W), the
+panel offered "Include 154 other bright satellites", which is the 156 less the two space
+stations that are always listed. Unticked, it listed 10 visible passes, all of the International
+Space Station. Ticked, it listed 1,031 visible passes over the five days; the first twenty were
+of 16 different objects, most of them spent rocket stages. The place was removed from that
+browser afterwards.
+
+**Two things this changes elsewhere.** The 127 are the first dead satellites and spent stages in
+the site's data. They are drawn grey (README, "Known issues"), and "What if?" mode now counts them
+among its targets: 130 of 17,024 satellites and rocket stages are not working, where V6.5 found
+3 of 16,897 the day before. The statement there that the targets are almost all working
+satellites still holds, and the figures in V6.5 were not recomputed.
+
+**A thousand passes is a lot to read.** The list shows twenty at a time. Nothing ranks them by
+brightness, because the data has no brightness (README, decision 21), so a faint rocket stage low
+in the sky sits beside a bright one overhead. That was known; the first real download shows its
+size.
+
+The list of other satellites in the panel had earlier been tried with a local stand-in: the real
+catalog with 149 low-orbit objects marked as if they were in the group. That file was never
+published.
 
 ### V4.5 Build and browser checks at the end of Phase 4
 
