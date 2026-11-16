@@ -105,7 +105,8 @@ test('remembers the place on the next visit and forgets it when asked', async ({
   await page.getByRole('button', { name: 'Change place' }).click();
   await expect(page.locator('html')).not.toHaveAttribute('data-observer', /./);
   await expect(placeField(page)).toBeVisible();
-  expect(await page.evaluate(() => window.localStorage.length)).toBe(0);
+  // Nothing is kept but the note that the tour has been seen, which every test starts with.
+  expect(await page.evaluate(() => Object.keys(window.localStorage))).toEqual(['orbit-now:tour']);
 });
 
 test('lists passes with their three moments, and more of them when asked', async ({ page }) => {

@@ -72,6 +72,10 @@ function section(
 function table(head: readonly string[], rows: readonly (readonly string[])[]): HTMLElement {
   const scroll = document.createElement('div');
   scroll.className = 'growth-table-scroll';
+  // On a narrow screen the table scrolls sideways; a keyboard has to be able to reach it to do so.
+  scroll.tabIndex = 0;
+  scroll.setAttribute('role', 'region');
+  scroll.setAttribute('aria-label', 'Table: the model against three real break-ups');
   const node = document.createElement('table');
   node.className = 'growth-table about-table';
   const top = document.createElement('thead');

@@ -396,6 +396,12 @@ function startAbout(): () => void {
 }
 
 function startMenu(): void {
+  // The skip link moves the focus itself. Followed as an ordinary link it
+  // would put "#search-input" in the address, where the view is kept.
+  document.querySelector('.skip-link')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    requireElement('search-input', HTMLInputElement).focus();
+  });
   const wrap = requireElement('more-button', HTMLButtonElement).parentElement;
   const button = requireElement('more-button', HTMLButtonElement);
   const list = requireElement('more-list', HTMLElement);
@@ -979,7 +985,9 @@ new MutationObserver(syncAddress).observe(requireElement('panel-whatif', HTMLEle
 clock.subscribe(syncAddress);
 // An address typed or pasted over this one is a new view: start again from it.
 window.addEventListener('hashchange', () => {
-  window.location.reload();
+  if (window.location.hash !== new URL(viewAddress()).hash) {
+    window.location.reload();
+  }
 });
 initTimeBar(
   {

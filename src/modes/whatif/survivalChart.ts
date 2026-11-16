@@ -142,6 +142,9 @@ export function mountSurvivalChart(container: HTMLElement): SurvivalChart {
   tableSummary.textContent = 'The chart as a table';
   const tableScroll = document.createElement('div');
   tableScroll.className = 'growth-table-scroll';
+  tableScroll.tabIndex = 0;
+  tableScroll.setAttribute('role', 'region');
+  tableScroll.setAttribute('aria-label', 'Table: share of the fragments still in orbit');
   table.append(tableSummary, tableScroll);
 
   figure.append(caption, plot, readout, table);

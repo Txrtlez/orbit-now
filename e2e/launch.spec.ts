@@ -132,16 +132,17 @@ test('keeps the view in the address, and the address brings the view back', asyn
   const html = page.locator('html');
   expect(new URL(page.url()).hash).toBe('');
 
-  const input = page.getByRole('combobox', { name: /^Search/ });
-  await input.fill('28057');
-  await input.press('Enter');
-  await expect(html).toHaveAttribute('data-selected', '28057');
-  await expect.poll(() => new URL(page.url()).hash).toBe('#o=28057');
-
+  // Filters first: on a phone they cannot be reached while an object is selected.
   await openOverview(page);
   await page.locator('#events > summary').click();
   await page.getByRole('button', { name: /Fengyun-1C/ }).click();
   await expect(html).toHaveAttribute('data-event', 'fengyun-1c');
+  await expect.poll(() => new URL(page.url()).hash).toBe('#g=fengyun-1c-debris');
+
+  const input = page.getByRole('combobox', { name: /^Search/ });
+  await input.fill('28057');
+  await input.press('Enter');
+  await expect(html).toHaveAttribute('data-selected', '28057');
   await expect.poll(() => new URL(page.url()).hash).toBe('#o=28057&g=fengyun-1c-debris');
   const shown = await html.getAttribute('data-shown');
 
@@ -178,11 +179,9 @@ test('brings back a "What if?" run, the same cloud each time', async ({ page }) 
   const link = './#m=whatif&s=stage-explosion&sun=quiet&run=2';
   const fragments: string[] = [];
   for (let visit = 0; visit < 2; visit += 1) {
-    await load(page, { path: visit === 0 ? link : './' });
-    if (visit === 1) {
-      await page.goto(link);
-      await page.reload();
-    }
+    // A fresh page each time, as when the link is opened by someone else.
+    await page.goto('about:blank');
+    await load(page, { path: link });
     const html = page.locator('html');
     await expect(page.getByRole('tab', { name: 'What if?' })).toHaveAttribute(
       'aria-selected',
@@ -280,6 +279,8 @@ test('can be worked from the keyboard: skip link, menu, and turning the globe', 
   await expect(page.getByRole('link', { name: 'Skip to search' })).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('combobox', { name: /^Search/ })).toBeFocused();
+  // Using the skip link leaves the address, and so the view, alone.
+  expect(new URL(page.url()).hash).toBe('');
 
   // The menu opens and closes from the keyboard, and gives the focus back.
   await menuButton(page).focus();

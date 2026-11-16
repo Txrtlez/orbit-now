@@ -50,7 +50,16 @@ export default defineConfig({
         // The engines behind Firefox and Safari. Playwright's WebKit is the
         // same engine as Safari's but is not Safari itself, and none of
         // these is a real phone. See VALIDATION.md, V7.4.
-        { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+        {
+          name: 'firefox',
+          use: {
+            ...devices['Desktop Firefox'],
+            // A test machine has no graphics card; ask Firefox to draw WebGL in software.
+            launchOptions: {
+              firefoxUserPrefs: { 'webgl.force-enabled': true, 'webgl.disabled': false },
+            },
+          },
+        },
         { name: 'webkit', use: { ...devices['Desktop Safari'] } },
         { name: 'mobile-webkit', use: { ...devices['iPhone 14'] } },
       ]

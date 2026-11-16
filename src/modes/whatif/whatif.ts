@@ -264,6 +264,9 @@ export function mountWhatIf(panel: HTMLElement, context: WhatIfContext): WhatIfC
   const facts = make('dl', 'facts');
   facts.id = 'whatif-facts';
   const tableWrap = make('div', 'growth-table-scroll');
+  tableWrap.tabIndex = 0;
+  tableWrap.setAttribute('role', 'region');
+  tableWrap.setAttribute('aria-label', 'Table: what is left, and hits, after 1, 10 and 100 years');
   const chartWrap = make('div');
   const chart = mountSurvivalChart(chartWrap);
   const caveat = make('p', 'small muted');
