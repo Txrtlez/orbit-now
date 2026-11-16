@@ -4,6 +4,14 @@ const isCi = process.env.CI !== undefined;
 
 // Optional override for machines where Playwright's own browser download is
 // unavailable: point this at any Chromium/Chrome binary.
+/**
+ * Set CROSS_BROWSER=1 to run the tests in Firefox and WebKit instead of
+ * Chromium. They are a separate run because those browsers have to be
+ * downloaded and because a failure there is recorded, not allowed to stop a
+ * deployment (the `cross-browser` workflow).
+ */
+const crossBrowser = process.env.CROSS_BROWSER === '1';
+
 const chromiumPath = process.env.PW_CHROMIUM_PATH;
 
 // Headless machines usually have no GPU. These flags make Chromium use its
@@ -37,16 +45,25 @@ export default defineConfig({
     // begins as a returning visitor, so that the tour is not in its way.
     storageState: RETURNING_VISITOR,
   },
-  projects: [
-    {
-      name: 'desktop-chromium',
-      use: { ...devices['Desktop Chrome'], launchOptions },
-    },
-    {
-      name: 'mobile-chromium',
-      use: { ...devices['Pixel 7'], launchOptions },
-    },
-  ],
+  projects: crossBrowser
+    ? [
+        // The engines behind Firefox and Safari. Playwright's WebKit is the
+        // same engine as Safari's but is not Safari itself, and none of
+        // these is a real phone. See VALIDATION.md, V7.4.
+        { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+        { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+        { name: 'mobile-webkit', use: { ...devices['iPhone 14'] } },
+      ]
+    : [
+        {
+          name: 'desktop-chromium',
+          use: { ...devices['Desktop Chrome'], launchOptions },
+        },
+        {
+          name: 'mobile-chromium',
+          use: { ...devices['Pixel 7'], launchOptions },
+        },
+      ],
   webServer: {
     // Tests run against the production build, not the dev server, so that they
     // exercise exactly what gets deployed.

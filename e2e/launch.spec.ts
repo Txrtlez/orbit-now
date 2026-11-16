@@ -146,7 +146,9 @@ test('keeps the view in the address, and the address brings the view back', asyn
   const shown = await html.getAttribute('data-shown');
 
   // The menu copies the same address.
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  // Chromium needs to be told the page may use the clipboard; the other
+  // engines do not know these names and refuse them, which is fine here.
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']).catch(() => undefined);
   await openMenu(page);
   await page.getByRole('button', { name: 'Copy a link to this view' }).click();
   await expect(page.locator('#share-status')).toHaveText(/Link copied\.|Copy the address below\./);

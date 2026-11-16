@@ -1,0 +1,62 @@
+# Runs the browser tests in Firefox and WebKit (the engine of Safari).
+#
+# This is separate from CI on purpose. CI and deployment use Chromium only;
+# this run shows how the site behaves in the other two engines, and its
+# result is recorded in VALIDATION.md (V7.4). A failure here does not stop a
+# deployment. Each browser is its own job so that one failing does not hide
+# the other's result.
+name: Cross-browser
+
+on:
+  workflow_dispatch:
+  push:
+    branches-ignore:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    name: ${{ matrix.project }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: firefox
+            install: firefox
+          - project: webkit
+            install: webkit
+          - project: mobile-webkit
+            install: webkit
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies exactly as locked
+        run: npm ci
+
+      - name: Install the browser
+        run: npx playwright install --with-deps ${{ matrix.install }}
+
+      - name: Browser tests
+        run: npx playwright test --project=${{ matrix.project }}
+        env:
+          CROSS_BROWSER: '1'
+
+      - name: Keep the Playwright report if anything failed
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-${{ matrix.project }}
+          path: playwright-report
+          retention-days: 7
+          if-no-files-found: ignore
