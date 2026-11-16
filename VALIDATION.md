@@ -1496,3 +1496,25 @@ a run from start to finish with its labels and caveat; the time control, Play an
 collision's speed and outcome and the comparison with the real event; the object selected in the
 tracker, including a collision too weak to destroy it; leaving the tab and returning. They check
 that the mode works and says what it should. They do not check its numbers.
+
+**Two older browser tests failed once on the way to deployment.** The first Deploy run on `main`
+(run 43776514012, commit d53bc0b) failed in the growth chart's playback test and in a passes test,
+on the desktop project, after the same commit had passed CI on the branch. Neither test touches
+"What if?" mode. Both wait for work that depends on the machine's speed (frames of an animation;
+a background computation) with the default limit of five seconds, and the new tests now run
+simulations beside them on a two-core machine. Their waits were raised to 30 seconds (commit
+bb85898); nothing in the site was changed. This is my reading of the cause from the two error
+messages; I did not reproduce the failure. An earlier run on the branch (43772694774) had failed
+for a similar reason in a new validation test that had no time limit of its own, fixed in d53bc0b.
+
+**The deployed site** was checked on 2026-11-16 in the built-in browser of the owner's PC, at
+`https://txrtlez.github.io/orbit-now/` (Deploy run 43778595712):
+
+| Check                                                         | Result                                                 |
+| ------------------------------------------------------------- | ------------------------------------------------------ |
+| Build shown in the footer                                     | bb85898, 2026-11-16 00:18 UTC                          |
+| Objects loaded                                                | 19,572                                                 |
+| "What if?" code and background thread fetched, as transferred | 9,031 and 4,029 bytes, only after the tab was opened   |
+| Two satellites collide: first cloud, all twelve repetitions   | 1.3 s, 13.2 s (the browser pane was in the background) |
+| Results                                                       | identical to the local build's, to every digit shown   |
+| Cloud three days after, in a screenshot                       | two rings crossing, in the two colours, tracker dimmed |
