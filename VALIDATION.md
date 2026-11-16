@@ -1692,3 +1692,43 @@ fragment cloud have been added, and the rate has not been measured again on a re
 phone. I cannot measure it: the build machine draws in software, and the browser pane on the
 owner's PC runs in the background, where browsers slow drawing down. To measure it, add
 `?stats` to the address on the device in question and read the figure at the top of the page.
+
+### V7.6 The deployed site, and the brief's deliverables
+
+**The deployed site** was checked on 2026-11-16 in the built-in browser of the owner's PC, at
+`https://txrtlez.github.io/orbit-now/` (Deploy run 43788788923, commit eab4a64). That browser had
+not seen Phase 7 before, so the first load was a first visit.
+
+| Check                                                                          | Result                                                                                             |
+| ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| Build shown in the footer                                                      | eab4a64, 2026-11-16 02:03 UTC                                                                      |
+| Objects loaded                                                                 | 19,572                                                                                             |
+| Tour on the first visit                                                        | started by itself; five stops; the figures of V7.2                                                 |
+| Tour's last stop                                                               | opened "What if?" and produced a cloud                                                             |
+| Ending the tour                                                                | Now tab, 19,572 shown, nothing selected, empty address                                             |
+| Selecting the Space Station                                                    | address became `#o=25544`                                                                          |
+| About page                                                                     | eight sections; "This visit loaded 19,572 objects, from data put together on 2026-11-15 19:52 UTC" |
+| Fetched only when used, bytes as transferred                                   | tour 1,881; About 4,715; "What if?" 9,364; its thread 4,029                                        |
+| A link with an object, a filter, "What if?", an event, a Sun setting and run 2 | all restored: object 25544, 8 objects shown, the event run, 237 pieces, address unchanged, no tour |
+| Page load on that PC, pane in the background                                   | 0.9 s to a usable page, 2.2 s to fully loaded, 1.45 MB transferred in all                          |
+
+The load times are one visit on one connection with the browser pane in the background, and are
+not a benchmark.
+
+**The brief's deliverables.**
+
+| Deliverable                                                              | State                                                                          |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| A deployed, mobile-friendly web app with Modes A and B                   | Deployed. Phone layout tested at phone sizes in two engines, not on a phone    |
+| The scheduled data pipeline                                              | Running three times a day since 2026-11-15 (V2.3; V4.4 still open)             |
+| Full test suite and VALIDATION.md                                        | 505 unit and validation tests, 65 browser tests on two sizes; this file        |
+| README: run, build, deploy, reproduce validations, decisions and reasons | Present; 34 decisions                                                          |
+| The in-app About page with sources and credits                           | Present (menu, "About the data and models")                                    |
+| Four launch gates                                                        | All run: three pass, one passes with a documented exception (top of this file) |
+
+**Where the site falls short of the brief, in one place.** It does not show every publicly
+tracked object (about 19,500 of about 33,500). Its "What if?" mode gives expected first hits,
+not a simulated cascade. Its frame rate on real devices has not been measured since Phase 3. It
+has not been opened in real Safari, Firefox or Edge, or on a real phone, by anyone but its
+owner. It has not been used with a screen reader. It has no licence. Each is described under
+"Known issues" in the README.
