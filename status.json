@@ -1,0 +1,108 @@
+{
+  "format": "orbit-now-pipeline-status",
+  "version": 1,
+  "generatedAt": "2026-11-28T20:03:48.136Z",
+  "catalogObjectCount": 19739,
+  "sources": [
+    {
+      "id": "iridium-33-debris",
+      "lastRequestAt": "2026-11-28T20:03:47.811Z",
+      "lastSuccessAt": "2026-11-28T11:58:05.530Z",
+      "lastOutcome": "refused",
+      "lastDetail": "HTTP 503: <!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\"\"http://www.w3.org/TR/html4/strict.dtd\"> <HTML><HEAD><TITLE>Service Unavailable</TITLE> <META HTTP-EQUIV=\"Content-Type\" Content=\"text/html; charset=us-ascii\"></HEAD> <BODY><h2>Service Unavailable</h2> <hr><p>HTTP Error 503. The service is unavailable.",
+      "rowCount": 110,
+      "acceptedCount": 110,
+      "rejected": {}
+    },
+    {
+      "id": "cosmos-2251-debris",
+      "lastRequestAt": "2026-11-28T11:58:08.766Z",
+      "lastSuccessAt": "2026-11-28T11:58:08.766Z",
+      "lastOutcome": "ok",
+      "lastDetail": "581 element sets accepted from 581 rows.",
+      "rowCount": 581,
+      "acceptedCount": 581,
+      "rejected": {}
+    },
+    {
+      "id": "fengyun-1c-debris",
+      "lastRequestAt": "2026-11-28T11:58:11.913Z",
+      "lastSuccessAt": "2026-11-28T11:58:11.913Z",
+      "lastOutcome": "ok",
+      "lastDetail": "1990 element sets accepted from 1990 rows.",
+      "rowCount": 1990,
+      "acceptedCount": 1990,
+      "rejected": {}
+    },
+    {
+      "id": "active",
+      "lastRequestAt": "2026-11-28T11:58:15.108Z",
+      "lastSuccessAt": "2026-11-28T11:58:15.108Z",
+      "lastOutcome": "ok",
+      "lastDetail": "16931 element sets accepted from 16931 rows.",
+      "rowCount": 16931,
+      "acceptedCount": 16931,
+      "rejected": {}
+    },
+    {
+      "id": "visual",
+      "lastRequestAt": "2026-11-28T11:58:18.896Z",
+      "lastSuccessAt": "2026-11-28T11:58:18.896Z",
+      "lastOutcome": "ok",
+      "lastDetail": "156 element sets accepted from 156 rows.",
+      "rowCount": 156,
+      "acceptedCount": 156,
+      "rejected": {}
+    },
+    {
+      "id": "satcat-iridium-33-debris",
+      "lastRequestAt": "2026-11-27T20:11:08.606Z",
+      "lastSuccessAt": "2026-11-27T20:11:08.606Z",
+      "lastOutcome": "ok",
+      "lastDetail": "657 catalog records accepted from 657 rows.",
+      "rowCount": 657,
+      "acceptedCount": 657,
+      "rejected": {}
+    },
+    {
+      "id": "satcat-cosmos-2251-debris",
+      "lastRequestAt": "2026-11-27T20:11:11.754Z",
+      "lastSuccessAt": "2026-11-27T20:11:11.754Z",
+      "lastOutcome": "ok",
+      "lastDetail": "1715 catalog records accepted from 1715 rows.",
+      "rowCount": 1715,
+      "acceptedCount": 1715,
+      "rejected": {}
+    },
+    {
+      "id": "satcat-fengyun-1c-debris",
+      "lastRequestAt": "2026-11-27T20:11:14.898Z",
+      "lastSuccessAt": "2026-11-27T20:11:14.898Z",
+      "lastOutcome": "ok",
+      "lastDetail": "3533 catalog records accepted from 3533 rows.",
+      "rowCount": 3533,
+      "acceptedCount": 3533,
+      "rejected": {}
+    },
+    {
+      "id": "satcat-active",
+      "lastRequestAt": "2026-11-27T20:11:18.073Z",
+      "lastSuccessAt": "2026-11-27T20:11:18.073Z",
+      "lastOutcome": "ok",
+      "lastDetail": "17499 catalog records accepted from 17499 rows.",
+      "rowCount": 17499,
+      "acceptedCount": 17499,
+      "rejected": {}
+    },
+    {
+      "id": "satcat-visual",
+      "lastRequestAt": "2026-11-27T20:11:21.505Z",
+      "lastSuccessAt": "2026-11-27T20:11:21.505Z",
+      "lastOutcome": "ok",
+      "lastDetail": "158 catalog records accepted from 158 rows.",
+      "rowCount": 158,
+      "acceptedCount": 158,
+      "rejected": {}
+    }
+  ]
+}
